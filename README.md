@@ -5,7 +5,7 @@ This Python module implements the Chicharro trivariate partial information decom
 It uses the Exponential Cone Programming approach described in
 * Abdullah Makkeh's PhD thesis, *Applications of Optimization in Some Complex Systems*, (forthcoming (2018)).
 
-The software has a similar features with [BROJA_2PID](https://github.com/Abzinger/BROJA_2PID/). So, for now, the following reference can be used to check some details of the implementation
+The software has similar features with [BROJA_2PID](https://github.com/Abzinger/BROJA_2PID/). So, for now, the following reference can be used to check some details of the implementation
 * A. Makkeh, D.O. Theis, R. Vicente, *BROJA-2PID: A cone programming based Partial Information Decomposition estimator*, Entropy 2018, 20(4), 271-291; [doi:10.3390/e20040271](http://dx.doi.org/10.3390/e20040271).
 
 #### If you use this software...
