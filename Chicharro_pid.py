@@ -131,14 +131,14 @@ class Opt_I(Solve_w_ECOS):
     def solve(self):
         return TRIVARIATE_SYN.solve(self)
     
-    def dual_value(self):
-        return TRIVARIATE_SYN.dual_value(self)
+    def dual_value(self, sol_lambda):
+        return TRIVARIATE_SYN.dual_value(self, sol_lambda)
 
-    def check_feasibility(self):
-        return TRIVARIATE_SYN.check_feasibility(self)
+    def check_feasibility(self, sol_rpq, sol_lambda):
+        return TRIVARIATE_SYN.check_feasibility(self, sol_rpq, sol_lambda)
     
-    def condentropy(self):
-        return TRIVARIATE_SYN.condentropy(self)
+    def condentropy(self, sol_rpq):
+        return TRIVARIATE_SYN.condentropy(self, sol_rpq)
 #^ subclass Opt_I
 
 class Opt_II(Solve_w_ECOS):
@@ -165,8 +165,8 @@ class Opt_II(Solve_w_ECOS):
     def solve(self, c, G, h, dims, A, b):
         return TRIVARIATE_UNQ.solve(self, c, G, h, dims, A, b)
     
-    def dual_value(self, b):
-        return TRIVARIATE_UNQ.dual_value(self, b)
+    def dual_value(self, sol_lambda, b):
+        return TRIVARIATE_UNQ.dual_value(self, sol_lambda, b)
 
     def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu):
         return TRIVARIATE_UNQ.check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu)
@@ -333,7 +333,6 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     # Check if the solver is implemented:
     assert cone_solver=="ECOS", "chicharro_pid.pid(pdf): We currently don't have an interface for the Cone Solver "+cone_solver+" (only ECOS)."
 
-    pool = Pool()
     pdf = { k:v  for k,v in pdf_dirty.items() if v > 1.e-300 }
 
     bx_sx = marginal_sx(pdf)
@@ -367,26 +366,27 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     if output == 1: print("Chicharro_pid: Starting solver",end="...")
     if output > 1: print("Chicharro_pid: Starting solver.")
 
-    # if parallel == "on":
-    #     res_t  = pool.apply_async(Solve_w_ECOS,[bx_sx, by_sy, bz_sz])
-    #     solver = res_t.get()
-    #     res_tt = pool.apply_async(Opt_I,[bx_sx, by_sy, bz_sz])
-    #     subsolver_I = res_tt.get()
-    #     cre_t  =pool.apply_async(subsolver_I.create_model)
-    #     cre_t.get()
-    #     res_I = pool.apply_async(subsolver_I.solve)
-    #     retval_I, sol_info_I = res_I.get()
-    #     res_12 = pool.apply_async(subsolver_II.solve,[c_12, G_12, h_12, dims_12, A_12, b_12])
-    #     retval_12, sol_rpq_12, sol_slack_12, sol_lambda_12, sol_mu_12, sol_info_12 = res_12.get()
-    #     res_13 = pool.apply_async(subsolver_II.solve,[c_13, G_13, h_13, dims_13, A_13, b_13])
-    #     retval_13, sol_rpq_13, sol_slack_13, sol_lambda_13, sol_mu_13, sol_info_13 = res_13.get()
-    #     res_23 = pool.apply_async(subsolver_II.solve,[c_23, G_23, h_23, dims_23, A_23, b_23])
-    #     retval_23, sol_rpq_23, sol_slack_23, sol_lambda_23, sol_mu_23, sol_info_23 = res_23.get()
-    # else:
-    retval_I, sol_info_I = subsolver_I.solve()
-    retval_12, sol_rpq_12, sol_slack_12, sol_lambda_12, sol_mu_12, sol_info_12 = subsolver_II.solve(c_12, G_12, h_12, dims_12, A_12, b_12)
-    retval_13, sol_rpq_13, sol_slack_13, sol_lambda_13, sol_mu_13, sol_info_13 = subsolver_II.solve(c_13, G_13, h_13, dims_13, A_13, b_13)
-    retval_23, sol_rpq_23, sol_slack_23, sol_lambda_23, sol_mu_23, sol_info_23 = subsolver_II.solve(c_23, G_23, h_23, dims_23, A_23, b_23)
+    if parallel == "on":
+        pool = Pool(8)
+        # res_t  = pool.apply_async(Solve_w_ECOS,[bx_sx, by_sy, bz_sz])
+        # solver = res_t.get()
+        # res_tt = pool.apply_async(Opt_I,[bx_sx, by_sy, bz_sz])
+        # subsolver_I = res_tt.get()
+        # cre_t  =pool.apply_async(subsolver_I.create_model)
+        # cre_t.get()
+        res_I = pool.apply_async(subsolver_I.solve)
+        retval_I, sol_rpq_I, sol_slack_I, sol_lambda_I, sol_mu_I, sol_info_I = res_I.get()
+        res_12 = pool.apply_async(subsolver_II.solve,[c_12, G_12, h_12, dims_12, A_12, b_12])
+        retval_12, sol_rpq_12, sol_slack_12, sol_lambda_12, sol_mu_12, sol_info_12 = res_12.get()
+        res_13 = pool.apply_async(subsolver_II.solve,[c_13, G_13, h_13, dims_13, A_13, b_13])
+        retval_13, sol_rpq_13, sol_slack_13, sol_lambda_13, sol_mu_13, sol_info_13 = res_13.get()
+        res_23 = pool.apply_async(subsolver_II.solve,[c_23, G_23, h_23, dims_23, A_23, b_23])
+        retval_23, sol_rpq_23, sol_slack_23, sol_lambda_23, sol_mu_23, sol_info_23 = res_23.get()
+    else:
+        retval_I, sol_rpq_I, sol_slack_I, sol_lambda_I, sol_mu_I, sol_info_I = subsolver_I.solve()
+        retval_12, sol_rpq_12, sol_slack_12, sol_lambda_12, sol_mu_12, sol_info_12 = subsolver_II.solve(c_12, G_12, h_12, dims_12, A_12, b_12)
+        retval_13, sol_rpq_13, sol_slack_13, sol_lambda_13, sol_mu_13, sol_info_13 = subsolver_II.solve(c_13, G_13, h_13, dims_13, A_13, b_13)
+        retval_23, sol_rpq_23, sol_slack_23, sol_lambda_23, sol_mu_23, sol_info_23 = subsolver_II.solve(c_23, G_23, h_23, dims_23, A_23, b_23)
     #^ if parallel
     
     if retval_I != "success" and retval_12 != "success" and retval_13 != "success" and retval_23 != "success":
@@ -406,17 +406,17 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
         print("Stats for optimizing H(S|X,Z):\n", sol_info_13)
         print("Stats for optimizing H(S|Y,Z):\n", sol_info_23)
 
-    condent_I     = subsolver_I.condentropy()
-    dual_val_I    = subsolver_I.dual_value()
+    condent_I     = subsolver_I.condentropy(sol_rpq_I)
+    dual_val_I    = subsolver_I.dual_value(sol_lambda_I)
     
     condent_12    = subsolver_II.condentropy_2vars([1,2], sol_rpq_12)
-    dual_val_12   = subsolver_II.dual_value(b_12)
+    dual_val_12   = subsolver_II.dual_value(sol_lambda_12, b_12)
     
     condent_13    = subsolver_II.condentropy_2vars([1,3],sol_rpq_13)
-    dual_val_13   = subsolver_II.dual_value(b_13)
+    dual_val_13   = subsolver_II.dual_value(sol_lambda_13, b_13)
     
     condent_23    = subsolver_II.condentropy_2vars([2,3],sol_rpq_23)
-    dual_val_23   = subsolver_II.dual_value(b_23)
+    dual_val_23   = subsolver_II.dual_value(sol_lambda_23,b_23)
 
     entropy_S     = subsolver_II.entropy_S(pdf)
     condent_1     = condent_V(1,pdf)
@@ -440,7 +440,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     return_data["SI"]    = entropy_S  - condent__orig - return_data["CI"] - return_data["UIX"]  - return_data["UIX"]  - return_data["UIX"] - return_data["UIXY"] - return_data["UIXZ"] - return_data["UIYZ"]
 
 
-    primal_infeas_I,dual_infeas_I = subsolver_I.check_feasibility()
+    primal_infeas_I,dual_infeas_I = subsolver_I.check_feasibility(sol_rpq_I,sol_lambda_I)
     return_data["Num_err_I"] = (primal_infeas_I, dual_infeas_I, max(-condent_I*ln(2) - dual_val_I, 0.0))
 
     primal_infeas_12,dual_infeas_12 = subsolver_II.check_feasibility([1,2], sol_rpq_12, sol_slack_12, sol_lambda_12, sol_mu_12)

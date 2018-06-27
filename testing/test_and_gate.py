@@ -23,7 +23,7 @@ parms['max_iters'] = 100
 
 print("Starting Chicharro_pid.pid() on AND gate.")
 try:
-  returndict = pid(andgate, cone_solver="ECOS", parallel='off', output=2, **parms)
+  returndict = pid(andgate, cone_solver="ECOS", parallel='on', output=2, **parms)
   msg="""Synergistic information: {CI}
   Unique information in X: {UIX}
   Unique information in Y: {UIY}

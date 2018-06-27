@@ -187,13 +187,13 @@ def solve(self):
         self.sol_lambda = solution['y']
         self.sol_mu     = solution['z']
         self.sol_info   = solution['info']
-        return "success", self.sol_info
+        return "success", self.sol_rpq, self.sol_slack, self.sol_lambda, self.sol_mu, self.sol_info
     else: # "x" not in dict solution
         return "x not in dict solution -- No Solution Found!!!"
     #^ if/esle
 #^ solve()
 
-def condentropy(self):
+def condentropy(self, sol_rpq):
     # compute cond entropy of the distribution in self.sol_rpq
     mysum = 0.
     for x in self.X:
@@ -202,9 +202,9 @@ def condentropy(self):
                 marg_s = 0.
                 q_list = [ q_vidx(self.idx_of_quad[ (s,x,y,z) ]) for s in self.S if (s,x,y,z) in self.idx_of_quad.keys()]
                 for i in q_list:
-                    marg_s += max(0,self.sol_rpq[i])
+                    marg_s += max(0,sol_rpq[i])
                 for i in q_list:
-                    q = self.sol_rpq[i]
+                    q = sol_rpq[i]
                     if q > 0:  mysum -= q*log(q/marg_s)
                 #^ for i
             #^ for z
@@ -213,13 +213,13 @@ def condentropy(self):
     return mysum
 #^ condentropy()
 
-def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (maxima)
+def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal/dual infeasibility (maxima)
     # Primal infeasiblility
     
     # non-negative ineqaulity 
     max_q_negativity = 0.
     for i in range(len(self.quad_of_idx)):
-        max_q_negativity = max(max_q_negativity, -self.sol_rpq[q_vidx(i)])
+        max_q_negativity = max(max_q_negativity, -sol_rpq[q_vidx(i)])
     #^ for
     max_violation_of_eqn = 0.
 
@@ -231,7 +231,7 @@ def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (
                 s,x = sx
                 if (s,x,y,z) in self.idx_of_quad.keys():
                     i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., self.sol_rpq[q_vidx(i)])
+                    q = max(0., sol_rpq[q_vidx(i)])
                     mysum -= q
                 #^ if
             #^ for z
@@ -247,7 +247,7 @@ def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (
                 s,y = sy
                 if (s,x,y,z) in self.idx_of_quad.keys():
                     i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., self.sol_rpq[q_vidx(i)])
+                    q = max(0., sol_rpq[q_vidx(i)])
                     mysum -= q
                 #^ if
             #^ for z
@@ -263,7 +263,7 @@ def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (
                 s,z = sz
                 if (s,x,y,z) in self.idx_of_quad.keys():
                     i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., self.sol_rpq[q_vidx(i)])
+                    q = max(0., sol_rpq[q_vidx(i)])
                     mysum -= q
                 #^ if
             #^ for y
@@ -317,7 +317,7 @@ def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (
         for j,tuvw in enumerate(self.quad_of_idx):
             t,u,v,w = tuvw
             if u == x and v == y and w == z:
-                mu_xyz += self.sol_lambda[j]
+                mu_xyz += sol_lambda[j]
             #^ if
         # Get indices of dual variables of the marginal constriants
         sx_idx = len(self.quad_of_idx) + idx_of_sx[(s,x)]
@@ -325,11 +325,11 @@ def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (
         sz_idx = len(self.quad_of_idx) + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
         
         # Find the most violated dual ieq
-        dual_infeasability = max( dual_infeasability, - self.sol_lambda[sx_idx]
-                                  - self.sol_lambda[sy_idx]
-                                  - self.sol_lambda[sz_idx]
+        dual_infeasability = max( dual_infeasability, - sol_lambda[sx_idx]
+                                  - sol_lambda[sy_idx]
+                                  - sol_lambda[sz_idx]
                                   - mu_xyz
-                                  -ln(-self.sol_lambda[i])
+                                  -ln(-sol_lambda[i])
                                   - 1
         )
     #^ for
@@ -337,5 +337,5 @@ def check_feasibility(self): # returns pair (p,d) of primal/dual infeasibility (
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 
-def dual_value(self):
-    return -np.dot(self.sol_lambda, self.b)
+def dual_value(self, sol_lambda):
+    return -np.dot(sol_lambda, self.b)

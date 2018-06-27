@@ -532,8 +532,8 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 
-def dual_value(self, b):
-    return -np.dot(self.sol_lambda, b)
+def dual_value(self, sol_lambda, b):
+    return -np.dot(sol_lambda, b)
 
 def marginal_ab(self,_A, _B, _C, _D, which_sources, sol_rpq):
     # provide the positive marginals all (a,b) in a system  (a,b,c,d)
