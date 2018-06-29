@@ -1,4 +1,4 @@
-# TRIVARIATE_SYN.py
+# TRIVARIATE_UNQ.py
 import ecos
 from scipy import sparse
 import numpy as np
@@ -56,14 +56,8 @@ def create_model(self, which_sources):
 
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
     m = len(self.b_sx) + len(self.b_sy) + len(self.b_sz)
-    if which_sources == [1,2]:
-        n = len(trip_of_idx)
-    elif which_sources == [1,3]:
-        n = len(trip_of_idx)
-    elif which_sources == [2,3]:
-        n = len(trip_of_idx)        
-    #^ if 
-
+    n = len(trip_of_idx)
+    
     n_vars = 3*n + len(self.quad_of_idx)
     n_cons = 2*n + m
 
@@ -169,9 +163,6 @@ def create_model(self, which_sources):
             #^ loop **yz
         #^ if SYZ
     #^ for SX_1X_2
-    
-    # # running number
-    # eqn += len(self.trip_of_idx)
     
     # The sx marginals q_{sx**} = b^x_{sx}
     for s in self.S:
@@ -283,29 +274,6 @@ def create_model(self, which_sources):
 
 #^ create_model()
 
-# def solve(self):
-#     # (c) Abdullah Makkeh, Dirk Oliver Theis
-#     # Permission to use and modify under Apache License version 2.0
-#     self.marg_xyz = None # for cond[]mutinf computation below
-    
-#     if self.verbose != None:
-#         print(self.verbose)
-#         self.ecos_kwargs["verbose"] = self.verbose
-#     #^ if    
-#     solution = ecos.solve(self.c, self.G,self.h, self.dims,  self.A,self.b, **self.ecos_kwargs)
-
-#     if 'x' in solution.keys():
-#         self.sol_rpq    = solution['x']
-#         self.sol_slack  = solution['s']
-#         self.sol_lambda = solution['y']
-#         self.sol_mu     = solution['z']
-#         self.sol_info   = solution['info']
-#         return "success", self.sol_info
-#     else: # "x" not in dict solution
-#         return "x not in dict solution -- No Solution Found!!!"
-#     #^ if/esle
-# #^ solve()
-
 def solve(self, c, G, h, dims, A, b):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
@@ -335,6 +303,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
 
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
 
+    n = len(trip_of_idx)
     # Primal infeasiblility
     
     # non-negative ineqaulity 
@@ -433,101 +402,152 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
 
     # non-negativity dual ineqaulity
 
-    print(sol_lambda)
-    for i,sxyz in enumerate(self.quad_of_idx):
-        s,x,y,z = sxyz
+    if which_sources == [1,2]:
+        for k, sxy in enumerate(trip_of_idx):
+            s,x,y = sxy
+            # Get indices of dual variables of the marginal constriants
+            sx_idx = 2*n + idx_of_sx[(s,x)]
+            sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
+            for i,tuvw in enumerate(self.quad_of_idx):
+                t,u,v,w = tuvw
+                if t == s and u == x and v == y:
+                    sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,w)]
+                #^ if
+            #^ for 
 
-        # nu_sxy: dual variable of the q-w coupling constraints
-        nu_sxy = sol_lambda[i]
+            # nu_sxy: dual variable of the q-w coupling constraints
+            
+            nu_sxy = sol_lambda[ idx_of_trip[(s,x,y)] ]
+            assert nu_sxy == sol_lambda[k], "problem in nu"
 
-        # mu_xy: dual varaible of the q-t coupling contsraints 
-        mu_xy = 0.
+            # mu_sxy: dual varaible of the q-t coupling contsraints
+            mu_sxy = sol_lambda[ n + idx_of_trip[(s,x,y)] ]
+            assert mu_sxy == sol_lambda[ n + k ], "problem in mu"
+                    
+            # mu_xy: dual varaible of the q-t coupling contsraints 
+            mu_xy = 0.
+            for s in self.S:
+                if (s,x,y) in idx_of_trip.keys():
+                    mu_xy += sol_lambda[ n + idx_of_trip[(s,x,y)] ]
+                #^ if sxy exists
+            #^ for s
 
-        for j,tuv in enumerate(trip_of_idx):
-            t,u,v = tuv
-            if u == x and v == y:
-                mu_idx = j + len(trip_of_idx)
-                mu_xy += sol_lambda[mu_idx]
-            #^if xy exits
-        # Get indices of dual variables of the marginal constriants
-        sx_idx = 2*len(trip_of_idx) + idx_of_sx[(s,x)]
-        sy_idx = 2*len(trip_of_idx) + len(self.b_sx) + idx_of_sy[(s,y)]
-        sz_idx = 2*len(trip_of_idx) + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+            # Find the most violated nonnegative dual ieq 
+            #     a      >= 0
+            dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx]
+                                         - sol_lambda[sy_idx]
+                                         - sol_lambda[sz_idx]
+                                         - mu_xy
+                                         - nu_sxy
+            )
 
-        # Find the most vaiolated dual ieq
-        # two types of ieq:
-        #                 (a,b,c) <_{kexp} 0
-        #                  a      <= 0
-        print("nonnegative: ", sol_lambda[sx_idx]
-              + sol_lambda[sy_idx]
-              + sol_lambda[sz_idx]
-              + mu_xy
-              + nu_sxy
-        )
-        dual_infeasability = max(dual_infeasability, sol_lambda[sx_idx]
-                                         + sol_lambda[sy_idx]
-                                         + sol_lambda[sz_idx]
-                                         + mu_xy
-                                         + nu_sxy
-                )
+            # Find the most violated K_exp dual ieq
+            # print("dual of kexp: ", sol_lambda[sx_idx]
+            #   + sol_lambda[sy_idx]
+            #   + mu_xy
+            #   - nu_sxy
+            #   +ln(-mu_sxy)
+            #   +1)
         #^ for
-    #^ for
-    print("trip_of_idx: ", trip_of_idx)
-    for k, sxy in enumerate(trip_of_idx):
-        s,x,y = sxy
+    #^ if
 
-        # nu_sxy: dual variable of the q-w coupling constraints
-        nu_sxy = sol_lambda[k]
+    if which_sources == [1,3]:
+        for k, sxz in enumerate(trip_of_idx):
+            s,x,z = sxz
+            # Get indices of dual variables of the marginal constriants
+            sx_idx = 2*n + idx_of_sx[(s,x)]
+            sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+            for i,tuvw in enumerate(self.quad_of_idx):
+                t,u,v,w = tuvw
+                if t == s and u == x and w == z:
+                    sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,v)]
+                #^ if
+            #^ for 
 
-        # mu_xy: dual varaible of the q-t coupling contsraints 
-        mu_xy = 0.
+            # nu_sxz: dual variable of the q-w coupling constraints
+            
+            nu_sxz = sol_lambda[ idx_of_trip[(s,x,z)] ]
+            assert nu_sxz == sol_lambda[k], "problem in nu"
 
-        for j,tuv in enumerate(trip_of_idx):
-            t,u,v = tuv
-            if u == x and v == y:
-                mu_idx = j + len(trip_of_idx)
-                mu_xy += sol_lambda[mu_idx]
-            #^if uv exits
-        # for s
-        print("mu_xy: ", mu_xy)
-        print("lg mu:", ln(-sol_lambda[len(trip_of_idx) + k]))
-        # Get indices of dual variables of the marginal constriants
-        sx_idx = 2*len(trip_of_idx) + idx_of_sx[(s,x)]
-        sy_idx = 2*len(trip_of_idx) + len(self.b_sx) + idx_of_sy[(s,y)]
-        print(sol_lambda[len(trip_of_idx) +k])
-        print("dual of kexp: ", sol_lambda[sx_idx]
-              + sol_lambda[sy_idx]
-              + mu_xy
-              - nu_sxy
-              +ln(-sol_lambda[len(trip_of_idx) + k])
-              +1)
-    #^ for 
+            # mu_sxz: dual varaible of the q-t coupling contsraints
+            mu_sxz = sol_lambda[ n + idx_of_trip[(s,x,z)] ]
+            assert mu_sxz == sol_lambda[ n + k ], "problem in mu"
 
-    
-    # for i,sxyz in enumerate(self.quad_of_idx):
-    #     mu_xyz = 0.
-    #     s,x,y,z = sxyz
-    #     # Compute mu_*xyz
-    #     # mu_xyz: dual variable of the coupling constraints
-    #     for j,tuvw in enumerate(self.quad_of_idx):
-    #         t,u,v,w = tuvw
-    #         if u == x and v == y and w == z:
-    #             mu_xyz += self.sol_lambda[j]
-    #         #^ if
-    #     # Get indices of dual variables of the marginal constriants
-    #     sx_idx = len(self.quad_of_idx) + idx_of_sx[(s,x)]
-    #     sy_idx = len(self.quad_of_idx) + len(self.b_sx) + idx_of_sy[(s,y)]
-    #     sz_idx = len(self.quad_of_idx) + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
-        
-    #     # Find the most violated dual ieq
-    #     dual_infeasability = max( dual_infeasability, - self.sol_lambda[sx_idx]
-    #                               - self.sol_lambda[sy_idx]
-    #                               - self.sol_lambda[sz_idx]
-    #                               - mu_xyz
-    #                               -ln(-self.sol_lambda[i])
-    #                               - 1
-    #     )
-    # #^ for
+            # mu_xz: dual varaible of the q-t coupling contsraints 
+            mu_xz = 0.
+            for s in self.S:
+                if (s,x,z) in idx_of_trip.keys():
+                    mu_xz += sol_lambda[ n + idx_of_trip[(s,x,z)] ]
+                #^ if sxy exists
+            #^ for s
+
+            # Find the most violated nonnegative dual ieq 
+            #     a      >= 0
+            dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx]
+                                         - sol_lambda[sy_idx]
+                                         - sol_lambda[sz_idx]
+                                         - mu_xz
+                                         - nu_sxz
+            )
+
+            # Find the most violated K_exp dual ieq
+            # print("dual of kexp: ", sol_lambda[sx_idx]
+            #   + sol_lambda[sz_idx]
+            #   + mu_xz
+            #   - nu_sxz
+            #   +ln(-mu_sxz)
+            #   +1)
+        #^ for
+    #^ if
+
+    if which_sources == [2,3]:
+        for k, syz in enumerate(trip_of_idx):
+            s,y,z = syz
+            # Get indices of dual variables of the marginal constriants
+            sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
+            sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+            for i,tuvw in enumerate(self.quad_of_idx):
+                t,u,v,w = tuvw
+                if t == s and v == y and w == z:
+                    sx_idx = 2*n + idx_of_sx[(s,u)]
+                #^ if
+            #^ for 
+
+            # nu_syz: dual variable of the q-w coupling constraints
+            
+            nu_syz = sol_lambda[idx_of_trip[(s,y,z)]]
+            assert nu_syz == sol_lambda[k], "problem in nu"
+
+            # mu_sxy: dual varaible of the q-t coupling contsraints
+            mu_syz = sol_lambda[ n + idx_of_trip[(s,y,z)] ]
+            assert mu_syz == sol_lambda[ n + k ], "problem in mu"
+
+            # mu_xy: dual varaible of the q-t coupling contsraints 
+            mu_yz = 0.
+            for s in self.S:
+                if (s,y,z) in idx_of_trip.keys():
+                    mu_yz += sol_lambda[ n + idx_of_trip[(s,y,z)] ]
+                #^ if sxy exists
+            #^ for s
+            
+            # Find the most violated nonnegative dual ieq 
+            #     a      >= 0
+            dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx]
+                                         - sol_lambda[sy_idx]
+                                         - sol_lambda[sz_idx]
+                                         - mu_yz
+                                         - nu_syz
+            )
+
+            # Find the most violated K_exp dual ieq
+            # print("dual of kexp: ", sol_lambda[sy_idx]
+            #   + sol_lambda[sz_idx]
+            #   + mu_yz
+            #   - nu_syz
+            #   +ln(-mu_syz)
+            #   +1)
+        #^ for
+    #^ if
 
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
