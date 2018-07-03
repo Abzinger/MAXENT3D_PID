@@ -29,6 +29,7 @@ import numpy as np
 from numpy import linalg as LA
 import math
 from collections import defaultdict
+import time
 
 log = math.log2
 ln  = math.log
@@ -48,7 +49,7 @@ class Chicharro_pid_Exception(Exception):
 class Solve_w_ECOS():
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
-    def __init__(self, marg_sx, marg_sy, marg_sz):
+    def __init__(self, marg_sx, marg_sy, marg_sz, marg_xy, marg_xz, marg_yz):
         # (c) Abdullah Makkeh, Dirk Oliver Theis
         # Permission to use and modify under Apache License version 2.0
 
@@ -75,6 +76,11 @@ class Solve_w_ECOS():
         self.b_sx         = dict(marg_sx)
         self.b_sy         = dict(marg_sy)
         self.b_sz         = dict(marg_sz)
+
+        self.b_xy         = dict(marg_xy)
+        self.b_xz         = dict(marg_xz)
+        self.b_yz         = dict(marg_yz)
+
         self.S            =set([ s for s,x in self.b_sx.keys() ]
                                + [ s for s,y in self.b_sy.keys() ]
                                + [ s for s,z in self.b_sz.keys() ])
@@ -143,7 +149,6 @@ class Opt_I(Solve_w_ECOS):
 
 class Opt_II(Solve_w_ECOS):
     # def __init__(self): TRIVARIATE_SYN.init(self)
-
     def initialization(self, which_sources):
         return TRIVARIATE_UNQ.initialization(self, which_sources)
 
@@ -203,6 +208,30 @@ def marginal_sz(p):
         s,x,y,z = sxyz
         if (s,z) in marg.keys():   marg[(s,z)] += r
         else:                      marg[(s,z)] =  r
+    return marg
+
+def marginal_xy(p):
+    marg = dict()
+    for sxyz,r in p.items():
+        s,x,y,z = sxyz
+        if (x,y) in marg.keys():   marg[(x,y)] += r
+        else:                      marg[(x,y)] =  r
+    return marg
+
+def marginal_xz(p):
+    marg = dict()
+    for sxyz,r in p.items():
+        s,x,y,z = sxyz
+        if (x,z) in marg.keys():   marg[(x,z)] += r
+        else:                      marg[(x,z)] =  r
+    return marg
+
+def marginal_yz(p):
+    marg = dict()
+    for sxyz,r in p.items():
+        s,x,y,z = sxyz
+        if (y,z) in marg.keys():   marg[(y,z)] += r
+        else:                      marg[(y,z)] =  r
     return marg
 
 def condent_V(V, p):
@@ -335,20 +364,39 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
 
     pdf = { k:v  for k,v in pdf_dirty.items() if v > 1.e-300 }
 
+    tic_marg = time.process_time()
     bx_sx = marginal_sx(pdf)
     by_sy = marginal_sy(pdf)
     bz_sz = marginal_sz(pdf)
 
-    # if cone_solver=="ECOS": .....
-    if output > 0:  print("BROJA_2PID: Preparing Cone Program data",end="...")
-    solver = Solve_w_ECOS(bx_sx, by_sy, bz_sz)
-    subsolver_I = Opt_I(bx_sx, by_sy, bz_sz)
-    subsolver_II = Opt_II(bx_sx, by_sy, bz_sz)
-    subsolver_I.create_model()
-    c_12, G_12, h_12, dims_12, A_12, b_12 = subsolver_II.create_model([1,2])
-    c_13, G_13, h_13, dims_13, A_13, b_13 = subsolver_II.create_model([1,3])
-    c_23, G_23, h_23, dims_23, A_23, b_23 = subsolver_II.create_model([2,3])
+    b_xy = marginal_xy(pdf)
+    b_xz = marginal_xz(pdf)
+    b_yz = marginal_yz(pdf)
     
+    toc_marg = time.process_time()
+    print("Time to create marginals:", toc_marg - tic_marg, "secs")
+    # if cone_solver=="ECOS": .....
+    if output > 0:  print("BROJA_2PID: Preparing Cone Program data",end="...\n")
+    solver = Solve_w_ECOS(bx_sx, by_sy, bz_sz, b_xy, b_xz, b_yz)
+    subsolver_I = Opt_I(bx_sx, by_sy, bz_sz, b_xy, b_xz, b_yz)
+    subsolver_II = Opt_II(bx_sx, by_sy, bz_sz, b_xy, b_xz, b_yz)
+    tic_I = time.process_time()
+    subsolver_I.create_model()
+    toc_I = time.process_time()
+    print("Time to create model I:", toc_I - tic_I, "secs\n")
+    tic_12 = time.process_time()
+    c_12, G_12, h_12, dims_12, A_12, b_12 = subsolver_II.create_model([1,2])
+    toc_12 = time.process_time()
+    print("Time to create model 12:", toc_12 - tic_12, "secs\n")
+    tic_13 = time.process_time()
+    c_13, G_13, h_13, dims_13, A_13, b_13 = subsolver_II.create_model([1,3])
+    toc_13 = time.process_time()
+    print("Time to create model 13:", toc_13 - tic_13, "secs\n")
+    tic_23 = time.process_time()
+    c_23, G_23, h_23, dims_23, A_23, b_23 = subsolver_II.create_model([2,3])
+    toc_23 = time.process_time()
+    print("Time to create model 23:", toc_23 - tic_23, "secs\n")
+     
     if output > 1:
         subsolver_I.verbose = True
         subsolver_II.verbose = True
@@ -368,12 +416,6 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
 
     if parallel == "on":
         pool = Pool(8)
-        # res_t  = pool.apply_async(Solve_w_ECOS,[bx_sx, by_sy, bz_sz])
-        # solver = res_t.get()
-        # res_tt = pool.apply_async(Opt_I,[bx_sx, by_sy, bz_sz])
-        # subsolver_I = res_tt.get()
-        # cre_t  =pool.apply_async(subsolver_I.create_model)
-        # cre_t.get()
         res_I = pool.apply_async(subsolver_I.solve)
         retval_I, sol_rpq_I, sol_slack_I, sol_lambda_I, sol_mu_I, sol_info_I = res_I.get()
         res_12 = pool.apply_async(subsolver_II.solve,[c_12, G_12, h_12, dims_12, A_12, b_12])
@@ -401,6 +443,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
 
     if output > 0:  print("\nChicharro_pid: done.")
 
+    tic_stats = time.process_time()
     if output > 1:
         print("Stats for optimizing H(S|X,Y,Z):\n", sol_info_I)
         print("Stats for optimizing H(S|X,Y):\n", sol_info_12)
@@ -455,6 +498,8 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
 
     return_data["Solver"] = "ECOS http://www.embotech.com/ECOS"
 
+    toc_stats = time.process_time()
+    print("Time for retrieving results:", toc_stats - tic_stats, "secs")
     if ecos_keep_solver_obj:
         return_data["Solver Object"] = solver
     #^ if (keep solver)

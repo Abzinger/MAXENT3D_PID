@@ -4,6 +4,7 @@ from scipy import sparse
 import numpy as np
 from numpy import linalg as LA
 import math
+import time
 # from collections import defaultdict
 ln  = math.log
 log = math.log2
@@ -44,23 +45,21 @@ def sp_vidx(i):
     return 3*i+1
 def sw_vidx(i):
     return 3*i+2
-def sq_vidx(self, i, which_sources):
-    idx_of_trip,trip_of_idx = self.initialization(which_sources)
-    return 3*len(trip_of_idx) + i
+def sq_vidx(self, i, ltrip_of_idx):
+    return 3*ltrip_of_idx + i
 
 def create_model(self, which_sources):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
 
     # Initialize which sources for the model
-
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
     m = len(self.b_sx) + len(self.b_sy) + len(self.b_sz)
     n = len(trip_of_idx)
-    
+    ltrip_of_idx = n
     n_vars = 3*n + len(self.quad_of_idx)
     n_cons = 2*n + m
-
+    
     # Create the equations: Ax = b
     self.b = np.zeros((n_cons,),dtype=np.double)
     
@@ -82,7 +81,7 @@ def create_model(self, which_sources):
         if which_sources == [1,2]:
             for u in self.Z:
                 if (s,t,v,u) in self.idx_of_quad.keys(): 
-                    q_var = self.sq_vidx(self.idx_of_quad[ (s,t,v,u) ], which_sources)
+                    q_var = self.sq_vidx(self.idx_of_quad[ (s,t,v,u) ], ltrip_of_idx)
                     Eqn.append( eqn )
                     Var.append( q_var )
                     Coeff.append( +1. )
@@ -92,7 +91,7 @@ def create_model(self, which_sources):
         elif which_sources == [1,3]:  
             for u in self.Y:
                 if (s,t,u,v) in self.idx_of_quad.keys(): 
-                    q_var = self.sq_vidx(self.idx_of_quad[ (s,t,u,v) ], which_sources)
+                    q_var = self.sq_vidx(self.idx_of_quad[ (s,t,u,v) ], ltrip_of_idx)
                     Eqn.append( eqn )
                     Var.append( q_var )
                     Coeff.append( +1. )
@@ -102,13 +101,14 @@ def create_model(self, which_sources):
         elif which_sources == [2,3]:
             for u in self.X:
                 if (s,u,t,v) in self.idx_of_quad.keys(): 
-                    q_var = self.sq_vidx(self.idx_of_quad[ (s,u,t,v) ], which_sources)
+                    q_var = self.sq_vidx(self.idx_of_quad[ (s,u,t,v) ], ltrip_of_idx)
                     Eqn.append( eqn )
                     Var.append( q_var )
                     Coeff.append( +1. )
                 #^ if q_{s*tv}
             #^ loop **yz                
         #^if SYZ
+    #^ for stv
 
     # running number
     eqn = -1 + len(trip_of_idx)
@@ -117,7 +117,8 @@ def create_model(self, which_sources):
     #         if Sources = X,Y  q_{*tv*} - p_{stv} = 0
     #         if Sources = X,Z  q_{*t*v} - p_{stv} = 0
     #         if Sources = Y,Z  q_{**tv} - p_{stv} = 0
-    
+    # ( Expensive step )
+
     for i,stv in enumerate(trip_of_idx):
         eqn     += 1
         p_var   = sp_vidx(i)
@@ -127,42 +128,49 @@ def create_model(self, which_sources):
         
         (s,t,v) = stv
         if which_sources == [1,2]:
-            for u1 in self.S:
-                for u2 in self.Z: 
-                    if (u1,t,v,u2) in self.idx_of_quad.keys(): 
-                        q_var = self.sq_vidx(self.idx_of_quad[ (u1,t,v,u2) ], which_sources)
-                        Eqn.append( eqn )
-                        Var.append( q_var )
-                        Coeff.append( +1. )
-                    #^ if q_{*tv*}
+            if (t,v) in self.b_xy.keys():
+                for u1 in self.S:
+                    for u2 in self.Z:
+                        if (u1,t,v,u2) in self.idx_of_quad.keys(): 
+                            q_var = self.sq_vidx(self.idx_of_quad[ (u1,t,v,u2) ], ltrip_of_idx)
+                            Eqn.append( eqn )
+                            Var.append( q_var )
+                            Coeff.append( +1. )
+                        #^ if q_{*tv*}
+                    #^ for u2
                 #^ for u2
-            #^ loop *xy*
+            #^ if *xy* exists
         #^ if SXY
         elif which_sources == [1,3]:
-            for u1 in self.S:
-                for u2 in self.Y: 
-                    if (u1,t,u2,v) in self.idx_of_quad.keys(): 
-                        q_var = self.sq_vidx(self.idx_of_quad[ (u1,t,u2,v) ], which_sources)
-                        Eqn.append( eqn )
-                        Var.append( q_var )
-                        Coeff.append( +1. )
-                    #^ if q_{*t*v}
-                #^ for v
-            #^ loop *x*z
+            if (t,v) in self.b_xz.keys():
+                for u1 in self.S:
+                    for u2 in self.Y: 
+                        if (u1,t,u2,v) in self.idx_of_quad.keys(): 
+                            q_var = self.sq_vidx(self.idx_of_quad[ (u1,t,u2,v) ], ltrip_of_idx)
+                            Eqn.append( eqn )
+                            Var.append( q_var )
+                            Coeff.append( +1. )
+                        #^ if q_{*t*v}
+                    #^ for u2
+                #^ for u1
+            #^ if *x*z exists
         #^ if SXZ
         elif which_sources == [2,3]:
-            for u1 in self.S:
-                for u2 in self.X: 
-                    if (u1,u2,t,v) in self.idx_of_quad.keys(): 
-                        q_var = self.sq_vidx(self.idx_of_quad[ (u1,u2,t,v) ], which_sources)
-                        Eqn.append( eqn )
-                        Var.append( q_var )
-                        Coeff.append( +1. )
-                    #^ if
-                #^ for v
-            #^ loop **yz
+            if (t,v) in self.b_yz.keys():
+                for u1 in self.S:
+                    for u2 in self.X: 
+                        if (u1,u2,t,v) in self.idx_of_quad.keys(): 
+                            q_var = self.sq_vidx(self.idx_of_quad[ (u1,u2,t,v) ], ltrip_of_idx)
+                            Eqn.append( eqn )
+                            Var.append( q_var )
+                            Coeff.append( +1. )
+                        #^ if q_{**tv}
+                    #^ for u2
+                #^ for u1
+            #^ if **yz exists
         #^ if SYZ
-    #^ for SX_1X_2
+    #^ for stv
+
     
     # The sx marginals q_{sx**} = b^x_{sx}
     for s in self.S:
@@ -172,7 +180,7 @@ def create_model(self, which_sources):
                 for y in self.Y:
                     for z in self.Z:
                         if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], which_sources)
+                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
                             Eqn.append( eqn )
                             Var.append( q_var )
                             Coeff.append( 1. )
@@ -192,7 +200,7 @@ def create_model(self, which_sources):
                 for x in self.X:
                     for z in self.Z:
                         if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], which_sources)
+                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
                             Eqn.append( eqn )
                             Var.append( q_var )
                             Coeff.append( 1. )
@@ -212,7 +220,7 @@ def create_model(self, which_sources):
                 for x in self.X:
                     for y in self.Y:
                         if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], which_sources)
+                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
                             Eqn.append( eqn )
                             Var.append( q_var )
                             Coeff.append( 1. )
@@ -234,7 +242,7 @@ def create_model(self, which_sources):
     # Adding q_{s,x,y,z} >= 0 or q_{s,x,y,z} is free variable
 
     for i,sxyz in enumerate(self.quad_of_idx):
-        q_var = self.sq_vidx(i, which_sources)
+        q_var = self.sq_vidx(i, ltrip_of_idx)
         Ieq.append( len(Ieq) )
         Var.append( q_var )
         Coeff.append( -1. )
@@ -304,12 +312,13 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
 
     n = len(trip_of_idx)
+    ltrip_of_idx = n
     # Primal infeasiblility
     
     # non-negative ineqaulity 
     max_q_negativity = 0.
     for i in range(len(self.quad_of_idx)):
-        max_q_negativity = max(max_q_negativity, -sol_rpq[self.sq_vidx(i, which_sources)])
+        max_q_negativity = max(max_q_negativity, -sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
     #^ for
     max_violation_of_eqn = 0.
 
@@ -321,7 +330,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
                 s,x = sx
                 if (s,x,y,z) in self.idx_of_quad.keys():
                     i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[self.sq_vidx(i, which_sources)])
+                    q = max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
                     mysum -= q
                 #^ if
             #^ for z
@@ -337,7 +346,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
                 s,y = sy
                 if (s,x,y,z) in self.idx_of_quad.keys():
                     i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[self.sq_vidx(i, which_sources)])
+                    q = max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
                     mysum -= q
                 #^ if
             #^ for z
@@ -353,7 +362,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
                 s,z = sz
                 if (s,x,y,z) in self.idx_of_quad.keys():
                     i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[self.sq_vidx(i, which_sources)])
+                    q = max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
                     mysum -= q
                 #^ if
             #^ for y
@@ -563,57 +572,59 @@ def marginal_ab(self,_A, _B, _C, _D, which_sources, sol_rpq):
     marg_23 = dict()
     marg_24 = dict()
     marg_34 = dict()
+    idx_of_trip,trip_of_idx = self.initialization(which_sources)
+    ltrip_of_idx = len(trip_of_idx)
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if (a,b) in marg_12.keys():
-            marg_12[(a,b)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_12[(a,b)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_12[(a,b)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_12[(a,b)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for 
 
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if (a,c) in marg_13.keys():
-            marg_13[(a,c)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_13[(a,c)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_13[(a,c)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_13[(a,c)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for 
 
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if (a,d) in marg_14.keys():
-            marg_14[(a,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_14[(a,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_14[(a,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_14[(a,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for 
 
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if (b,c) in marg_23.keys():
-            marg_23[(b,c)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_23[(b,c)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_23[(b,c)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_23[(b,c)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for
 
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if (b,d) in marg_24.keys():
-            marg_24[(b,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_24[(b,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_24[(b,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_24[(b,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for
 
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if (c,d) in marg_34.keys():
-            marg_34[(c,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_34[(c,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_34[(c,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_34[(c,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if 
     #^ for
     return marg_12, marg_13, marg_14, marg_23, marg_24, marg_34
@@ -622,6 +633,8 @@ def marginal_ab(self,_A, _B, _C, _D, which_sources, sol_rpq):
 def marginal_abc(self, _A, _B, _C, _D, which_sources, sol_rpq):
     # provide the positive marginals all (a,b,c) in a system  (a,b,c,d)
     marg = dict()
+    idx_of_trip,trip_of_idx = self.initialization(which_sources)
+    ltrip_of_idx = len(trip_of_idx)
     for a in _A:
         for b in _B:
             for c in _C:
@@ -631,9 +644,9 @@ def marginal_abc(self, _A, _B, _C, _D, which_sources, sol_rpq):
                     elif which_sources == [2,3]: w = (a,d,b,c)                    
                     if w in self.idx_of_quad.keys():
                         if (a,b,c) in marg.keys():
-                            marg[(a,b,c)] += max(0,sol_rpq[self.sq_vidx(self.idx_of_quad[ w ], which_sources)])
+                            marg[(a,b,c)] += max(0,sol_rpq[self.sq_vidx(self.idx_of_quad[ w ], ltrip_of_idx)])
                         else:
-                            marg[(a,b,c)] = max(0,sol_rpq[self.sq_vidx(self.idx_of_quad[ w ], which_sources)])
+                            marg[(a,b,c)] = max(0,sol_rpq[self.sq_vidx(self.idx_of_quad[ w ], ltrip_of_idx)])
                         #^ if (a,b,c) is a key
                     #^ if w exists
                 #^ for d
@@ -692,36 +705,38 @@ def marginal_a(self,_A, _B, _C, _D, which_sources, sol_rpq):
     marg_2 = dict()
     marg_3 = dict()
     marg_4 = dict()
+    idx_of_trip,trip_of_idx = self.initialization(which_sources)
+    ltrip_of_idx = len(trip_of_idx)
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if a in marg_1.keys():
-            marg_1[a] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_1[a] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_1[a] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_1[a] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if b in marg_2.keys():
-            marg_2[b] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_2[b] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_2[b] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_2[b] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if c in marg_3.keys():
-            marg_3[c] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_3[c] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_3[c] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_3[c] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for
     for abcd in self.idx_of_quad.keys():
         a,b,c,d = abcd
         if d in marg_4.keys():
-            marg_4[d] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_4[d] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_4[d] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], which_sources)])
+            marg_4[d] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         #^ if
     #^ for
     return marg_1, marg_2, marg_3, marg_4
@@ -729,7 +744,8 @@ def marginal_a(self,_A, _B, _C, _D, which_sources, sol_rpq):
 
 
 def condentropy_1var(self,which_sources,sol_rpq):
-    mysum = 0. 
+    mysum = 0.
+    
     if which_sources == [1,2]:
         # H( S | Z )
         marg_S,marg_X,marg_Y,marg_Z = self.marginal_a(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
