@@ -8,9 +8,9 @@ from Chicharro_pid import pid, Chicharro_pid_Exception
 import time
 from math import log2
 
-for n_X in range(10,40,10):
-    for n_Y in range(10,40,10):
-        for n_Z in range(10,40,10): 
+for n_X in range(20,30,10):
+    for n_Y in range(20,30,10):
+        for n_Z in range(20,30,10): 
             print("______________________________________________________________________")
             print("COPY   with |X| =",n_X,", |Y| =",n_Y,", |Z| =",n_Z,":")
             print("Create pdf.")
@@ -24,9 +24,9 @@ for n_X in range(10,40,10):
                 #^ for y
             #^ for x 
             print("Run Chicharro_PID.pid().")
-            tic = time.process_time()
+            tic = time.time()
             returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=2)
-            toc = time.process_time()
+            toc = time.time()
 
             # Compute deviations from the analytical results
             returndictdev = dict()
