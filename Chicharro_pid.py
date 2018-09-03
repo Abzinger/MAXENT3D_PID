@@ -351,12 +351,15 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     assert type(pdf_dirty) is dict, "chicharro_pid.pid(pdf): pdf must be a dictionary"
     assert type(cone_solver) is str, "chicharro_pid.pid(pdf): `cone_solver' parameter must be string (e.g., 'ECOS')"
     if __debug__:
+        sum_p = 0
         for k,v in pdf_dirty.items():
             assert type(k) is tuple or type(k) is list,           "chicharro_2pid.pid(pdf): pdf's keys must be tuples or lists"
             assert len(k)==4,                                     "chicharro_pid.pid(pdf): pdf's keys must be tuples/lists of length 4"
             assert type(v) is float or ( type(v)==int and v==0 ), "chicharro_pid.pid(pdf): pdf's values must be floats"
             assert v > -.1,                                       "chicharro_pid.pid(pdf): pdf's values must not be negative"
+            sum_p += v
         #^ for
+        assert abs(sum_p - 1)< 1.e-10,                                       "chicharro_pid.pid(pdf): pdf's values must sum up to 1"
     #^ if
     assert type(output) is int, "chicharro_pid.pid(pdf,output): output must be an integer"
 
@@ -375,7 +378,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     b_yz = marginal_yz(pdf)
     
     toc_marg = time.time()
-    print("Time to create marginals:", toc_marg - tic_marg, "secs")
+    if output > 0: print("Time to create marginals:", toc_marg - tic_marg, "secs")
     # if cone_solver=="ECOS": .....
     if output > 0:  print("BROJA_2PID: Preparing Cone Program data",end="...\n")
 
@@ -395,9 +398,9 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
         c_I, G_I, h_I, dims_I, A_I, b_I = cre_I.get()
         cre_12, cre_13, cre_23 = cre_II.get()
         toc_I = time.time()
-        print("Time to create model I:", toc_I - tic_I, "secs\n")
+        if output > 0: print("Time to create model I:", toc_I - tic_I, "secs\n")
         toc_II = time.time()
-        print("Time to create model 12, 13 and 23:", toc_II - tic_II, "secs\n")
+        if output > 0: print("Time to create model 12, 13 and 23:", toc_II - tic_II, "secs\n")
         c_12, G_12, h_12, dims_12, A_12, b_12 = cre_12
         c_13, G_13, h_13, dims_13, A_13, b_13 = cre_13
         c_23, G_23, h_23, dims_23, A_23, b_23 = cre_23
@@ -407,22 +410,22 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
         tic_I = time.process_time()
         c_I, G_I, h_I, dims_I, A_I, b_I = subsolver_I.create_model()
         toc_I = time.process_time()
-        print("Time to create model I:", toc_I - tic_I, "secs\n")
+        if output > 0: print("Time to create model I:", toc_I - tic_I, "secs\n")
         tic_12 = time.process_time()
         c_12, G_12, h_12, dims_12, A_12, b_12 = subsolver_II.create_model([1,2])
         toc_12 = time.process_time()
-        print("Time to create model 12:", toc_12 - tic_12, "secs\n")
+        if output > 0: print("Time to create model 12:", toc_12 - tic_12, "secs\n")
         tic_13 = time.process_time()
         c_13, G_13, h_13, dims_13, A_13, b_13 = subsolver_II.create_model([1,3])
         toc_13 = time.process_time()
-        print("Time to create model 13:", toc_13 - tic_13, "secs\n")
+        if output > 0: print("Time to create model 13:", toc_13 - tic_13, "secs\n")
         tic_23 = time.process_time()
         c_23, G_23, h_23, dims_23, A_23, b_23 = subsolver_II.create_model([2,3])
         toc_23 = time.process_time()
-        print("Time to create model 23:", toc_23 - tic_23, "secs\n")
+        if output > 0: print("Time to create model 23:", toc_23 - tic_23, "secs\n")
 
     toc_mod = time.time()
-    print("Time to create all models. ", toc_mod - tic_mod, "secs")
+    if output > 0: print("Time to create all models. ", toc_mod - tic_mod, "secs")
 
     if output > 1:
         subsolver_I.verbose = True
@@ -556,7 +559,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     # .....
     # #^endif
     toc_stats = time.time()
-    print("Time for retrieving results:", toc_stats - tic_stats, "secs")
+    if output > 0: print("Time for retrieving results:", toc_stats - tic_stats, "secs")
 
 
     tic_dict = time.time()
@@ -569,7 +572,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     return_data["UIXY"]  = condent_I  + condent_3     - condent_13        - condent_23
     return_data["UIXZ"]  = condent_I  + condent_2     - condent_12        - condent_23
     return_data["UIYZ"]  = condent_I  + condent_1     - condent_12        - condent_13
-    return_data["SI"]    = entropy_S  - condent__orig - return_data["CI"] - return_data["UIX"]  - return_data["UIX"]  - return_data["UIX"] - return_data["UIXY"] - return_data["UIXZ"] - return_data["UIYZ"]
+    return_data["SI"]    = entropy_S  - condent__orig - return_data["CI"] - return_data["UIX"]  - return_data["UIY"]  - return_data["UIZ"] - return_data["UIXY"] - return_data["UIXZ"] - return_data["UIYZ"]
 
     tic_o = time.time()    
     if parallel == "on":
@@ -603,7 +606,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     #^if parallel
 
     toc_o = time.time()
-    print("time to compute Numerical Errors:", toc_o - tic_o, "secs")
+    if output > 0: print("time to compute Numerical Errors:", toc_o - tic_o, "secs")
     
     return_data["Num_err_I"] = (primal_infeas_I, dual_infeas_I, max(-condent_I*ln(2) - dual_val_I, 0.0))
     return_data["Num_err_12"] = (primal_infeas_12,dual_infeas_12, max(-condent_12*ln(2) - dual_val_12, 0.0))
@@ -611,10 +614,13 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     return_data["Num_err_23"] = (primal_infeas_23,dual_infeas_23, max(-condent_23*ln(2) - dual_val_23, 0.0))
     return_data["Solver"] = "ECOS http://www.embotech.com/ECOS"
     if ecos_keep_solver_obj:
-        return_data["Solver Object"] = solver
+        return_data["Ecos Solver Object"] = solver
+        return_data["Opt I Solver Object"] = subsolver_I
+        return_data["Opt II Solver Object"] = subsolver_II
+        
     #^ if (keep solver)
     toc_dict = time.time()
-    print("Time for storing results:", toc_dict - tic_dict, "secs")
+    if output > 0: print("Time for storing results:", toc_dict - tic_dict, "secs")
 
     return return_data
 #^ pid()
