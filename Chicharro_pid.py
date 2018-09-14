@@ -194,6 +194,7 @@ def marginal_sx(p):
         if (s,x) in marg.keys():    marg[(s,x)] += r
         else:                       marg[(s,x)] =  r
     return marg
+#^ marginal_sx()
 
 def marginal_sy(p):
     marg = dict()
@@ -202,6 +203,7 @@ def marginal_sy(p):
         if (s,y) in marg.keys():   marg[(s,y)] += r
         else:                      marg[(s,y)] =  r
     return marg
+#^ marginal_sy()
 
 def marginal_sz(p):
     marg = dict()
@@ -210,6 +212,7 @@ def marginal_sz(p):
         if (s,z) in marg.keys():   marg[(s,z)] += r
         else:                      marg[(s,z)] =  r
     return marg
+#^ marginal_sz()
 
 def marginal_xy(p):
     marg = dict()
@@ -218,6 +221,7 @@ def marginal_xy(p):
         if (x,y) in marg.keys():   marg[(x,y)] += r
         else:                      marg[(x,y)] =  r
     return marg
+#^ marginal_xy()
 
 def marginal_xz(p):
     marg = dict()
@@ -226,6 +230,7 @@ def marginal_xz(p):
         if (x,z) in marg.keys():   marg[(x,z)] += r
         else:                      marg[(x,z)] =  r
     return marg
+#^ marginal_xz()
 
 def marginal_yz(p):
     marg = dict()
@@ -234,99 +239,133 @@ def marginal_yz(p):
         if (y,z) in marg.keys():   marg[(y,z)] += r
         else:                      marg[(y,z)] =  r
     return marg
+#^ marginal_yz()
 
+# Compute Conditional Entopy of the form H(W|T)
 def condent_V(V, p):
-    marg_V = dict()
+    marg_V = defaultdict(lambda: 0.)
     mysum = 0.
+
+    # Compute H(S|X)
     if V == 1:
         b_sx = marginal_sx(p)
+
+        # Get P(*,x,*,*)
         for sxyz,r in p.items():
             s,x,y,z = sxyz
-            if x in marg_V.keys(): marg_V[x] += r
-            else:                  marg_V[x]  = r
+            if r > 0: marg_V[x] += r
         #^ for sxyz exists
+
+        # Subtract P(s,x,*,*) * ( P(s,x,*,*) / P(*,x,*,*) )  
         for sx,t in b_sx.items():
             s,x = sx
             if t > 0: mysum -= t*log(t/marg_V[x])
         #^ for sx exists
         return mysum
     #^ if
+
+    # Compute H(S|Y)
+    if V == 2:
+        b_sy = marginal_sy(p)
+
+        # Get P(*,*,y,*)
+        for sxyz,r in p.items():
+            s,x,y,z = sxyz
+            if r > 0: marg_V[y] += r
+        #^ for sxyz exists
+        
+        # Subtract P(s,*,y,*) * ( P(s,*,y,*) / P(*,*,y,*) )  
+        for sy,t in b_sy.items():
+            s,y = sy
+            if t > 0: mysum -= t*log( t / marg_V[y] )
+        #^ for sy exists
+        return mysum
+    #^ if
+
+    # Compute H(S|Z)
+    if V == 3:
+        b_sz = marginal_sz(p)
+
+        # Get P(*,*,*,z)
+        for sxyz,r in p.items():
+            s,x,y,z = sxyz
+            if r > 0: marg_V[z] += r
+        #^ for sxyz exists
+
+        # Subtract P(s,*,*,z) * ( P(s,*,*,z) / P(*,*,*,z) )  
+        for sz,t in b_sz.items():
+            s,z = sz
+            if t > 0: mysum -= t*log( t / marg_V[z] )
+        #^ for sz exists
+    return mysum
+    #^ if
+#^ condent_V()
+
+# Compute the Mutual Information MI(W;T)
+def I_V(V,p):
+
+    # Initialization
+    marg_V = defaultdict(lambda: 0.)
+    marg_S = defaultdict(lambda: 0.)
+    mysum = 0.
+
+    # Compute I(S; X)
+    if V == 1:
+        b_sx = marginal_sx(p)
+        for sxyz,r in p.items():
+            s,x,y,z = sxyz
+            # Get P(s,*,*,*) & P(*,x,*,*)
+            if r > 0:
+                marg_S[s] += r                
+                marg_V[x] += r
+        #^ for sxyz exists
+
+        # add P(s,x,*,*)*( P(s,x,*,*) / (P(s,*,*,*) * P(*,x,*,*) )
+        for sx,t in b_sx.items():
+            s,x = sx
+            if t > 0: mysum += t*log( t / ( marg_S[s]*marg_V[x] ) )
+        #^ for sx exists
+    #^ if
+
+    # Compute I(S; Y)
     if V == 2:
         b_sy = marginal_sy(p)
         for sxyz,r in p.items():
             s,x,y,z = sxyz
-            if y in marg_V.keys(): marg_V[y] += r
-            else:                  marg_V[y]  = r
+            # Get P(s,*,*,*) & P(*,*,y,*)
+            if r > 0:
+                marg_S[s] += r                
+                marg_V[y] += r
         #^ for sxyz exists
+
+        # add P(s,*,y,*)*( P(s,*,y,*) / (P(s,*,*,*) * P(*,*,y,*) )
         for sy,t in b_sy.items():
             s,y = sy
-            if t > 0: mysum -= t*log(t/marg_V[y])
-        #^ for sx exists
-        return mysum
+            if t > 0: mysum += t*log( t / ( marg_S[s]*marg_V[y] ) )
+        #^ for sy exists
     #^ if
+    
+    # Compute I(S; Z)
     if V == 3:
         b_sz = marginal_sz(p)
+
+        # Get P(s,*,*,*) & P(*,*,*,z)
         for sxyz,r in p.items():
             s,x,y,z = sxyz
-            if z in marg_V.keys(): marg_V[z] += r
-            else:                  marg_V[z]  = r
+            if r > 0:
+                marg_S[s] += r                
+                marg_V[z] += r
         #^ for sxyz exists
+
+        # add P(s,*,*,z)*( P(s,*,*,z) / (P(s,*,*,*) * P(*,*,*,z) ) 
         for sz,t in b_sz.items():
             s,z = sz
-            if t > 0: mysum -= t*log(t/marg_V[z])
-        #^ for sx exists
-    return mysum
+            if t > 0: mysum += t*log( t / (marg_S[s]*marg_V[z]) )
+        #^ for sz exists
     #^ if
-# def entropy_S(S, p):
-#     mysum = 0.
-#     marg_S = dict()
-#     for sxyz,r in p.items():
-#         s,x,y,z = sxyz
-#         if s in marg_S.keys(): marg_S[s] += r
-#         else:                  marg_S[s]  = r
-#     #^ for sxyz exists
-#     for s in S:
-#         mysum -= marg_S[s]*log(marg_S[s])
-#     #^ for x
-#     return mysum
-# #^ entropy_S()
 
-    
-    # def I_X_Y(p):
-#     # Mutual information I( X ; Y )
-#     mysum   = 0.
-#     marg_x  = defaultdict(lambda: 0.)
-#     marg_y  = defaultdict(lambda: 0.)
-#     b_xy    = marginal_xy(p)
-#     for xyz,r in p.items():
-#         x,y,z = xyz
-#         if r > 0 :
-#             marg_x[x] += r
-#             marg_y[y] += r
-    
-#     for xy,t in b_xy.items():
-#         x,y = xy
-#         if t > 0:  mysum += t * log( t / ( marg_x[x]*marg_y[y] ) )
-#     return mysum
-# #^ I_X_Y()
-
-# def I_X_Z(p):
-#     # Mutual information I( X ; Z )
-#     mysum   = 0.
-#     marg_x  = defaultdict(lambda: 0.)
-#     marg_z  = defaultdict(lambda: 0.)
-#     b_xz    = marginal_xz(p)
-#     for xyz,r in p.items():
-#         x,y,z = xyz
-#         if r > 0 :
-#             marg_x[x] += r
-#             marg_z[z] += r
-    
-#     for xz,t in b_xz.items():
-#         x,z = xz
-#         if t > 0:  mysum += t * log( t / ( marg_x[x]*marg_z[z] ) )
-#     return mysum
-# #^ I_X_Z()
+    return mysum
+#^ I_V()
 
 # def I_X_YZ(p):
 #     # Mutual information I( X ; Y , Z )
@@ -359,7 +398,7 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
             assert v > -.1,                                       "chicharro_pid.pid(pdf): pdf's values must not be negative"
             sum_p += v
         #^ for
-        assert abs(sum_p - 1)< 1.e-10,                                       "chicharro_pid.pid(pdf): pdf's values must sum up to 1"
+        assert abs(sum_p - 1)< 1.e-10,                                       "chicharro_pid.pid(pdf): pdf's values must sum up to 1 (tolerance of precision is 1.e-10)"
     #^ if
     assert type(output) is int, "chicharro_pid.pid(pdf,output): output must be an integer"
 
@@ -621,6 +660,27 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     #^ if (keep solver)
     toc_dict = time.time()
     if output > 0: print("Time for storing results:", toc_dict - tic_dict, "secs")
+
+    # Sanity check
+
+    # Check: MI(S; X, Y, Z) = SI + CI + UIX + UIY + UIZ + UIXY + UIXZ + UIYZ
+    assert abs(entropy_S - condent__orig
+               - return_data['CI'] - return_data['SI']
+               - return_data['UIX'] - return_data['UIY'] - return_data['UIZ']
+               - return_data['UIXY'] - return_data['UIXZ'] - return_data['UIYZ'])< 1.e-10,                                       "chicharro_pid.pid(pdf): PID quantities must  sum up to mutual information (tolerance of precision is 1.e-10)"
+
+    # Check: MI(S;X) = SI + UIX + UIXY + UIXZ
+    assert abs( I_V(1,pdf)
+               - return_data['SI'] - return_data['UIX'] - return_data['UIXY'] - return_data['UIXZ'])< 1.e-10,                                       "chicharro_pid.pid(pdf): Unique and shared of X must sum up to MI(S; X) (tolerance of precision is 1.e-10)"
+
+    # Check: MI(S;Y) = SI + UIY + UIXY + UIYZ
+    assert abs( I_V(2,pdf)
+               - return_data['SI'] - return_data['UIY'] - return_data['UIXY'] - return_data['UIYZ'])< 1.e-10,                                       "chicharro_pid.pid(pdf): Unique and shared of Y must sum up to MI(S; Y) (tolerance of precision is 1.e-10)"
+
+
+    # Check: MI(S;Z) = SI + UIZ + UIXZ + UIYZ
+    assert abs( I_V(3,pdf) 
+               - return_data['SI'] - return_data['UIZ'] - return_data['UIXZ'] - return_data['UIYZ'])< 1.e-10,                                       "chicharro_pid.pid(pdf): Unique and shared of Z must sum up to MI(S; Z) (tolerance of precision is 1.e-10)"
 
     return return_data
 #^ pid()

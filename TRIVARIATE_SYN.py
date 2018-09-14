@@ -3,7 +3,9 @@ import ecos
 from scipy import sparse
 import numpy as np
 from numpy import linalg as LA
+from collections import defaultdict
 import math
+import time 
 # from collections import defaultdict
 
 # ECOS's exp cone: (r,p,q)   w/   q>0  &  exp(r/q) ≤ p/q
@@ -168,10 +170,10 @@ def create_model(self):
     for i,sxyz in enumerate(self.quad_of_idx):
         self.c[ r_vidx(i) ] = -1.
     #^ for xyz
-
+    return self.c, self.G, self.h, self.dims, self.A, self.b
 #^ create_model()
 
-def solve(self):
+def solve(self, c, G, h, dims, A, b):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
     self.marg_xyz = None # for cond[]mutinf computation below
@@ -179,7 +181,7 @@ def solve(self):
     if self.verbose != None:
         self.ecos_kwargs["verbose"] = self.verbose
     #^ if    
-    solution = ecos.solve(self.c, self.G,self.h, self.dims,  self.A,self.b, **self.ecos_kwargs)
+    solution = ecos.solve(c, G, h, dims,  A, b, **self.ecos_kwargs)
 
     if 'x' in solution.keys():
         self.sol_rpq    = solution['x']
@@ -214,15 +216,22 @@ def condentropy(self, sol_rpq):
 #^ condentropy()
 
 def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal/dual infeasibility (maxima)
+
     # Primal infeasiblility
     
-    # non-negative ineqaulity 
+    # non-negative ineqaulity
+    itic_neg = time.process_time()
     max_q_negativity = 0.
     for i in range(len(self.quad_of_idx)):
         max_q_negativity = max(max_q_negativity, -sol_rpq[q_vidx(i)])
     #^ for
-    max_violation_of_eqn = 0.
+    itoc_neg = time.process_time()
+    print("time to compute primal negative violations I: ", itoc_neg - itic_neg, "secs")  
 
+
+    # Marginal equations 
+    max_violation_of_eqn = 0.
+    itic_marg = time.process_time()    
     # sx** - marginals:
     for sx in self.b_sx.keys():
         mysum = self.b_sx[sx]
@@ -272,9 +281,13 @@ def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal
     #^ fox sz
 
     primal_infeasability = max(max_violation_of_eqn,max_q_negativity)
-    
+
+    itoc_marg = time.process_time()
+    print("time to compute marginal vilations I: ", itoc_marg - itic_marg, "secs") 
+
     # Dual infeasiblility
-    
+
+    # Finding dual indices 
     idx_of_sx = dict()
     i = 0
     for s in self.S:
@@ -309,16 +322,20 @@ def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal
     #^ for s
 
     dual_infeasability = 0.
+
+    itic_negD = time.process_time()
+
+    # Compute mu_*xyz
+    mu_xyz = defaultdict(lambda: 0.)
     for i,sxyz in enumerate(self.quad_of_idx):
-        mu_xyz = 0.
         s,x,y,z = sxyz
-        # Compute mu_*xyz
-        # mu_xyz: dual variable of the coupling constraints
-        for j,tuvw in enumerate(self.quad_of_idx):
-            t,u,v,w = tuvw
-            if u == x and v == y and w == z:
-                mu_xyz += sol_lambda[j]
-            #^ if
+        mu_xyz[(x,y,z)] += sol_lambda[i]
+    #^ for mu_xyz
+
+    # Dual inequalities
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+
         # Get indices of dual variables of the marginal constriants
         sx_idx = len(self.quad_of_idx) + idx_of_sx[(s,x)]
         sy_idx = len(self.quad_of_idx) + len(self.b_sx) + idx_of_sy[(s,y)]
@@ -328,14 +345,15 @@ def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal
         dual_infeasability = max( dual_infeasability, - sol_lambda[sx_idx]
                                   - sol_lambda[sy_idx]
                                   - sol_lambda[sz_idx]
-                                  - mu_xyz
+                                  - mu_xyz[(x,y,z)]
                                   -ln(-sol_lambda[i])
                                   - 1
         )
     #^ for
-
+    itoc_negD = time.process_time()
+    print("time to compute dual negative violations I: ", itoc_negD - itic_negD, "secs")
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 
-def dual_value(self, sol_lambda):
-    return -np.dot(sol_lambda, self.b)
+def dual_value(self, sol_lambda, b):
+    return -np.dot(sol_lambda, b)

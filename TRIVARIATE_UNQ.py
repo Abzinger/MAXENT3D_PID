@@ -3,6 +3,7 @@ import ecos
 from scipy import sparse
 import numpy as np
 from numpy import linalg as LA
+from collections import defaultdict
 import math
 import time
 # from collections import defaultdict
@@ -71,6 +72,7 @@ def create_model(self, which_sources):
     #         if Sources = X,Y  q_{stv*} - w_{stv} = 0
     #         if Sources = X,Z  q_{st*v} - w_{stv} = 0
     #         if Sources = Y,Z  q_{s*tv} - w_{stv} = 0
+    tic_w = time.process_time()
     for i,stv in enumerate(trip_of_idx):
         eqn   = i
         w_var = sw_vidx(i)
@@ -109,7 +111,8 @@ def create_model(self, which_sources):
             #^ loop **yz                
         #^if SYZ
     #^ for stv
-
+    toc_w = time.process_time()
+    # print("Done w_{stv}. ", toc_w - tic_w, "secs")
     # running number
     eqn = -1 + len(trip_of_idx)
     
@@ -118,7 +121,7 @@ def create_model(self, which_sources):
     #         if Sources = X,Z  q_{*t*v} - p_{stv} = 0
     #         if Sources = Y,Z  q_{**tv} - p_{stv} = 0
     # ( Expensive step )
-
+    tic_p = time.process_time()
     for i,stv in enumerate(trip_of_idx):
         eqn     += 1
         p_var   = sp_vidx(i)
@@ -170,8 +173,9 @@ def create_model(self, which_sources):
             #^ if **yz exists
         #^ if SYZ
     #^ for stv
-
-    
+    toc_p = time.process_time()
+    # print("Done t_{stv}. ", toc_p - tic_p, "secs")
+    tic_m = time.process_time()
     # The sx marginals q_{sx**} = b^x_{sx}
     for s in self.S:
         for x in self.X:
@@ -231,7 +235,8 @@ def create_model(self, which_sources):
             #^ if sz exists
         #^ for z
     #^ for s
-
+    toc_m = time.process_time()
+    # print("Done marginals. ", toc_m - tic_m, "secs")
     self.A = sparse.csc_matrix( (Coeff, (Eqn,Var)), shape=(n_cons,n_vars), dtype=np.double)
     
     # Generalized ieqs: gen.nneg of the variable triple (r_i,w_i,p_i), i=0,dots,n-1: 
@@ -315,13 +320,21 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     ltrip_of_idx = n
     # Primal infeasiblility
     
-    # non-negative ineqaulity 
+    # non-negative ineqaulity
+    tic_neg = time.time()
+    itic_neg = time.process_time()
     max_q_negativity = 0.
     for i in range(len(self.quad_of_idx)):
         max_q_negativity = max(max_q_negativity, -sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
     #^ for
+    toc_neg = time.time()
+    itoc_neg = time.process_time()
+    print("time to primal negativity violations 123", toc_neg - tic_neg, "secs")
+    print("time to primal negativity violations 123", itoc_neg - itic_neg, "secs") 
     max_violation_of_eqn = 0.
 
+    tic_marg = time.time()
+    itic_marg = time.process_time()
     # sx** - marginals:
     for sx in self.b_sx.keys():
         mysum = self.b_sx[sx]
@@ -370,12 +383,17 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
     #^ fox sz
 
+    toc_marg = time.time()
+    itoc_marg = time.process_time()
+    print("time to compute violation of marginal eqautions 123: ", toc_marg - tic_marg, "secs")
+    print("time ot compute violation of marginal eqautions 123: ", itoc_marg - itic_marg, "secs") 
     primal_infeasability = max(max_violation_of_eqn, max_q_negativity)
     
     # Dual infeasiblility
 
     dual_infeasability = 0.
-
+    tic_idx = time.time()
+    itic_idx = time.process_time()
     idx_of_sx = dict()
     i = 0
     for s in self.S:
@@ -408,47 +426,49 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #^ if sz exists
         #^ for z
     #^ for s
-
+    itoc_idx = time.process_time()
+    print("time to find correct dual idx 123", itoc_idx - itic_idx, "secs")
     # non-negativity dual ineqaulity
-
+    
+    itic_negD12 = time.process_time()
     if which_sources == [1,2]:
+
+        # Get indices of dual variables of the marginal constriants
+        sz_idx = defaultdict(lambda: 0.)
+        for i,sxyz in enumerate(self.quad_of_idx):
+            s,x,y,z = sxyz
+            sz_idx[(s,x,y)] = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+        #^ for
+        
+        # Compute mu_xy: dual varaible of the q-t coupling contsraints
+        mu_xy = defaultdict(lambda: 0.)
         for k, sxy in enumerate(trip_of_idx):
             s,x,y = sxy
-            # Get indices of dual variables of the marginal constriants
+            mu_xy[(x,y)] += sol_lambda[ n + idx_of_trip[(s,x,y)] ]
+        #^ for sxy
+        
+        for k, sxy in enumerate(trip_of_idx):
+            s,x,y = sxy
             sx_idx = 2*n + idx_of_sx[(s,x)]
             sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
-            for i,tuvw in enumerate(self.quad_of_idx):
-                t,u,v,w = tuvw
-                if t == s and u == x and v == y:
-                    sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,w)]
-                #^ if
-            #^ for 
-
             # nu_sxy: dual variable of the q-w coupling constraints
-            
             nu_sxy = sol_lambda[ idx_of_trip[(s,x,y)] ]
             assert nu_sxy == sol_lambda[k], "problem in nu"
 
             # mu_sxy: dual varaible of the q-t coupling contsraints
             mu_sxy = sol_lambda[ n + idx_of_trip[(s,x,y)] ]
             assert mu_sxy == sol_lambda[ n + k ], "problem in mu"
-                    
-            # mu_xy: dual varaible of the q-t coupling contsraints 
-            mu_xy = 0.
-            for s in self.S:
-                if (s,x,y) in idx_of_trip.keys():
-                    mu_xy += sol_lambda[ n + idx_of_trip[(s,x,y)] ]
-                #^ if sxy exists
-            #^ for s
+            
 
             # Find the most violated nonnegative dual ieq 
             #     a      >= 0
             dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx]
-                                         - sol_lambda[sy_idx]
-                                         - sol_lambda[sz_idx]
-                                         - mu_xy
-                                         - nu_sxy
+                                     - sol_lambda[sy_idx]
+                                     - sol_lambda[ int(sz_idx[(s,x,y)]) ]
+                                     - mu_xy[(x,y)]
+                                     - nu_sxy
             )
+
 
             # Find the most violated K_exp dual ieq
             # print("dual of kexp: ", sol_lambda[sx_idx]
@@ -458,20 +478,32 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +ln(-mu_sxy)
             #   +1)
         #^ for
-    #^ if
-
+        itoc_negD12 = time.process_time()
+        print("time to compute neagtive dual violations 12: ", itoc_negD12 - itic_negD12, "secs")
+    #^ if sources
+    
+    itic_negD13 = time.process_time()
     if which_sources == [1,3]:
+
+        # Get indices of dual variables of the marginal constriants
+        sy_idx = defaultdict(lambda: 0.)
+        for i,sxyz in enumerate(self.quad_of_idx):
+            s,x,y,z = sxyz
+            sy_idx[(s,x,z)] = 2*n + len(self.b_sx) + idx_of_sy[(s,z)]
+        #^ for
+
+        # mu_xz: dual varaible of the q-t coupling contsraints
+        mu_xz = defaultdict(lambda: 0.)
+        for k, sxz in enumerate(trip_of_idx):
+            s,x,z = sxz
+            mu_xz[(x,z)] += sol_lambda[ n + idx_of_trip[(s,x,z)] ]
+        #^ for sxz
+        
         for k, sxz in enumerate(trip_of_idx):
             s,x,z = sxz
             # Get indices of dual variables of the marginal constriants
             sx_idx = 2*n + idx_of_sx[(s,x)]
             sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
-            for i,tuvw in enumerate(self.quad_of_idx):
-                t,u,v,w = tuvw
-                if t == s and u == x and w == z:
-                    sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,v)]
-                #^ if
-            #^ for 
 
             # nu_sxz: dual variable of the q-w coupling constraints
             
@@ -482,20 +514,12 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             mu_sxz = sol_lambda[ n + idx_of_trip[(s,x,z)] ]
             assert mu_sxz == sol_lambda[ n + k ], "problem in mu"
 
-            # mu_xz: dual varaible of the q-t coupling contsraints 
-            mu_xz = 0.
-            for s in self.S:
-                if (s,x,z) in idx_of_trip.keys():
-                    mu_xz += sol_lambda[ n + idx_of_trip[(s,x,z)] ]
-                #^ if sxy exists
-            #^ for s
-
             # Find the most violated nonnegative dual ieq 
             #     a      >= 0
             dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx]
-                                         - sol_lambda[sy_idx]
+                                         - sol_lambda[sy_idx[(s,x,z)]]
                                          - sol_lambda[sz_idx]
-                                         - mu_xz
+                                         - mu_xz[(x,z)]
                                          - nu_sxz
             )
 
@@ -507,20 +531,32 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +ln(-mu_sxz)
             #   +1)
         #^ for
-    #^ if
+        itoc_negD13 = time.process_time()
+        print("time to compute neagtive dual violations 13: ", itoc_negD13 - itic_negD13, "secs")
+    #^ if sources 
 
+    itic_negD23 = time.process_time()
     if which_sources == [2,3]:
+
+        # Get indices of dual variables of the marginal constriants
+        sx_idx = defaultdict(lambda: 0.)
+        for i,sxyz in enumerate(self.quad_of_idx):
+            s,x,y,z = sxyz
+            sx_idx[(s,y,z)] = 2*n + idx_of_sx[(s,x)]
+        #^ for
+
+        # mu_yz: dual varaible of the q-t coupling contsraints 
+        mu_yz = defaultdict(lambda: 0.)
+        for k, syz in enumerate(trip_of_idx):
+            s,y,z = syz
+            mu_yz[(y,z)] += sol_lambda[ n + idx_of_trip[(s,y,z)] ]
+        #^ for syz
+        
         for k, syz in enumerate(trip_of_idx):
             s,y,z = syz
             # Get indices of dual variables of the marginal constriants
             sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
             sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
-            for i,tuvw in enumerate(self.quad_of_idx):
-                t,u,v,w = tuvw
-                if t == s and v == y and w == z:
-                    sx_idx = 2*n + idx_of_sx[(s,u)]
-                #^ if
-            #^ for 
 
             # nu_syz: dual variable of the q-w coupling constraints
             
@@ -530,21 +566,13 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             # mu_sxy: dual varaible of the q-t coupling contsraints
             mu_syz = sol_lambda[ n + idx_of_trip[(s,y,z)] ]
             assert mu_syz == sol_lambda[ n + k ], "problem in mu"
-
-            # mu_xy: dual varaible of the q-t coupling contsraints 
-            mu_yz = 0.
-            for s in self.S:
-                if (s,y,z) in idx_of_trip.keys():
-                    mu_yz += sol_lambda[ n + idx_of_trip[(s,y,z)] ]
-                #^ if sxy exists
-            #^ for s
             
             # Find the most violated nonnegative dual ieq 
             #     a      >= 0
-            dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx]
+            dual_infeasability = max(dual_infeasability, -sol_lambda[sx_idx[(s,y,z)]]
                                          - sol_lambda[sy_idx]
                                          - sol_lambda[sz_idx]
-                                         - mu_yz
+                                         - mu_yz[(y,z)]
                                          - nu_syz
             )
 
@@ -556,8 +584,10 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +ln(-mu_syz)
             #   +1)
         #^ for
-    #^ if
-
+        itoc_negD23 = time.process_time()
+        print("time to compute neagtive dual violations 23: ", itoc_negD23 - itic_negD23, "secs")
+    #^ if sources
+    
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 
@@ -667,9 +697,9 @@ def condentropy_2vars(self, which_sources, sol_rpq):
         for s in self.S:
             for x in self.X:
                 for y in self.Y:
-                    if (s,x,y) in idx_of_trip.keys():
+                    if (s,x,y) in idx_of_trip.keys() and marg_XY[(x,y)] > 0 and  marg_SXY[(s,x,y)] > 0:
                         # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
-                        mysum -= marg_SXY[(s,x,y)]*log(marg_SXY[(s,x,y)]/marg_XY[(x,y)])
+                        mysum -= marg_SXY[(s,x,y)]*log(marg_SXY[(s,x,y)]/marg_XY[(x,y)])    
         return mysum
     #^ if sources
     elif which_sources == [1,3]:
@@ -679,7 +709,7 @@ def condentropy_2vars(self, which_sources, sol_rpq):
         for s in self.S:
             for x in self.X:
                 for z in self.Z:
-                    if (s,x,z) in idx_of_trip.keys():
+                    if (s,x,z) in idx_of_trip.keys() and marg_SXZ[(s,x,z)] > 0 and  marg_XZ[(x,z)] > 0:
                         # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
                         mysum -= marg_SXZ[(s,x,z)]*log(marg_SXZ[(s,x,z)]/marg_XZ[(x,z)])
         return mysum
@@ -691,7 +721,7 @@ def condentropy_2vars(self, which_sources, sol_rpq):
         for s in self.S:
             for y in self.Y:
                 for z in self.Z:
-                    if (s,y,z) in idx_of_trip.keys():
+                    if (s,y,z) in idx_of_trip.keys() and marg_SYZ[(s,y,z)] > 0 and  marg_YZ[(y,z)] > 0:
                         # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
                         mysum -= marg_SYZ[(s,y,z)]*log(marg_SYZ[(s,y,z)]/marg_YZ[(y,z)])
         return mysum
@@ -752,7 +782,7 @@ def condentropy_1var(self,which_sources,sol_rpq):
         marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
         for s in self.S:
             for z in self.Z:
-                if (s,z) in self.b_sz.keys():
+                if (s,z) in self.b_sz.keys() and marg_SZ[(s,z)] > 0 and marg_Z[z] > 0:
                     # Subtract q_{s,z}*log( q_{s,z}/ q_{z} )
                     mysum -= marg_SZ[(s,z)]*log(marg_SZ[(s,z)]/marg_Z[z])
                 #^ if sz exists
@@ -766,7 +796,7 @@ def condentropy_1var(self,which_sources,sol_rpq):
         marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
         for s in self.S:
             for y in self.Y:
-                if (s,y) in self.b_sy.keys():
+                if (s,y) in self.b_sy.keys()and marg_SY[(s,y)] > 0 and marg_Y[y] > 0:
                     # Subtract q_{s,y}*log( q_{s,y}/ q_{y} )
                     mysum -= marg_SY[(s,y)]*log(marg_SY[(s,y)]/marg_Y[y])
                 #^ if sy exists
@@ -781,7 +811,7 @@ def condentropy_1var(self,which_sources,sol_rpq):
         marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
         for s in self.S:
             for x in self.X:
-                if (s,x) in self.b_sx.keys():
+                if (s,x) in self.b_sx.keys() and marg_SX[(s,x)] > 0 and marg_X[x] > 0:
                     # Subtract q_{s,x}*log( q_{s,x}/ q_{x} )
                     mysum -= marg_SX[(s,x)]*log(marg_SX[(s,x)]/marg_X[x])
                 #^ if sx exists
