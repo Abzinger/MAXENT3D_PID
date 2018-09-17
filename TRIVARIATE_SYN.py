@@ -39,9 +39,10 @@ log = math.log2
     
 # #^ init
 
-def create_model(self):
+def create_model(self, output = 0):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
+    tic_all = time.process_time()
     n = len(self.quad_of_idx)
     m = len(self.b_sx) + len(self.b_sy) + len(self.b_sz)
     n_vars = 3*n
@@ -55,6 +56,7 @@ def create_model(self):
     Coeff = []
     
     # The q-p coupling equations: q_{*xyz} - p_{sxyz} = 0
+    itic_p = time.process_time()
     for i,sxyz in enumerate(self.quad_of_idx):
         eqn     = i
         p_var   = p_vidx(i)
@@ -72,11 +74,13 @@ def create_model(self):
             #^ if
         #^ loop *xyz
     #^ for sxyz
-    
+    itoc_p = time.process_time()
+    if output == 2: print("Time to create q-p coupling equations [min - H(S|U,V,W)]:", itoc_p - itic_p, "secs")
     # running number
     eqn = -1 + len(self.quad_of_idx)
     
     # The sx marginals q_{sx**} = b^x_{sx}
+    itic_m = time.process_time()
     for s in self.S:
         for x in self.X:
             if (s,x) in self.b_sx.keys():
@@ -135,7 +139,8 @@ def create_model(self):
             #^ if sz exists
         #^ for z
     #^ for s
-
+    itoc_m = time.process_time()
+    if output == 2: print("Time to create marginal equations [min - H(S|U,V,W)]:", itoc_m - itic_m, "secs")
     self.A = sparse.csc_matrix( (Coeff, (Eqn,Var)), shape=(n_cons,n_vars), dtype=np.double)
     
     # Generalized ieqs: gen.nneg of the variable quadruple (r_i,q_i,p_i), i=0,dots,n-1:
@@ -170,6 +175,8 @@ def create_model(self):
     for i,sxyz in enumerate(self.quad_of_idx):
         self.c[ r_vidx(i) ] = -1.
     #^ for xyz
+    toc_all = time.process_time()
+    if output > 0: print("Time to create model [min - H(S|U,V,W)]:", toc_all - tic_all, "secs") 
     return self.c, self.G, self.h, self.dims, self.A, self.b
 #^ create_model()
 
@@ -215,7 +222,7 @@ def condentropy(self, sol_rpq):
     return mysum
 #^ condentropy()
 
-def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal/dual infeasibility (maxima)
+def check_feasibility(self, sol_rpq, sol_lambda, output = 0): # returns pair (p,d) of primal/dual infeasibility (maxima)
 
     # Primal infeasiblility
     
@@ -226,7 +233,7 @@ def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal
         max_q_negativity = max(max_q_negativity, -sol_rpq[q_vidx(i)])
     #^ for
     itoc_neg = time.process_time()
-    print("time to compute primal negative violations I: ", itoc_neg - itic_neg, "secs")  
+    if output == 2: print("time to compute primal negative violations I: ", itoc_neg - itic_neg, "secs")  
 
 
     # Marginal equations 
@@ -283,7 +290,7 @@ def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal
     primal_infeasability = max(max_violation_of_eqn,max_q_negativity)
 
     itoc_marg = time.process_time()
-    print("time to compute marginal vilations I: ", itoc_marg - itic_marg, "secs") 
+    if output == 2: print("time to compute marginal violations I: ", itoc_marg - itic_marg, "secs") 
 
     # Dual infeasiblility
 
@@ -351,7 +358,7 @@ def check_feasibility(self, sol_rpq, sol_lambda): # returns pair (p,d) of primal
         )
     #^ for
     itoc_negD = time.process_time()
-    print("time to compute dual negative violations I: ", itoc_negD - itic_negD, "secs")
+    if output == 2: print("time to compute dual negative violations I: ", itoc_negD - itic_negD, "secs")
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 

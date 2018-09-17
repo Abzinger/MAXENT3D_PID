@@ -49,11 +49,12 @@ def sw_vidx(i):
 def sq_vidx(self, i, ltrip_of_idx):
     return 3*ltrip_of_idx + i
 
-def create_model(self, which_sources):
+def create_model(self, which_sources, output=0):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
 
     # Initialize which sources for the model
+    tic_all = time.process_time()
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
     m = len(self.b_sx) + len(self.b_sy) + len(self.b_sz)
     n = len(trip_of_idx)
@@ -112,7 +113,7 @@ def create_model(self, which_sources):
         #^if SYZ
     #^ for stv
     toc_w = time.process_time()
-    # print("Done w_{stv}. ", toc_w - tic_w, "secs")
+    if output == 2: print("Time to create q-w coupling equations [min -H(S|T,W)]:", toc_w - tic_w, "secs")
     # running number
     eqn = -1 + len(trip_of_idx)
     
@@ -174,9 +175,10 @@ def create_model(self, which_sources):
         #^ if SYZ
     #^ for stv
     toc_p = time.process_time()
-    # print("Done t_{stv}. ", toc_p - tic_p, "secs")
-    tic_m = time.process_time()
+    if output == 2: print("Time to create q-t coupling equations [min -H(S|T,W)]:", toc_p - tic_p, "secs")
+    
     # The sx marginals q_{sx**} = b^x_{sx}
+    tic_m = time.process_time()
     for s in self.S:
         for x in self.X:
             if (s,x) in self.b_sx.keys():
@@ -236,7 +238,8 @@ def create_model(self, which_sources):
         #^ for z
     #^ for s
     toc_m = time.process_time()
-    # print("Done marginals. ", toc_m - tic_m, "secs")
+    if output == 2: print("Time to create marginal equations [min -H(S|T,W)]:", toc_m - tic_m, "secs")
+    tic_rest = time.process_time()
     self.A = sparse.csc_matrix( (Coeff, (Eqn,Var)), shape=(n_cons,n_vars), dtype=np.double)
     
     # Generalized ieqs: gen.nneg of the variable triple (r_i,w_i,p_i), i=0,dots,n-1: 
@@ -283,6 +286,10 @@ def create_model(self, which_sources):
         self.c[ sr_vidx(i) ] = -1.
     #^ for stv
 
+    toc_rest = time.process_time()
+    if output == 2: print("Time to create the matrices [min -H(S|T,W)]:", toc_rest - tic_rest, "secs")
+    toc_all = time.process_time()
+    if output > 0: print("Time to create model [min -H(S|T,W)]:", toc_all - tic_all, "secs")
     return self.c, self.G, self.h, self.dims, self.A, self.b
 
 #^ create_model()
@@ -311,7 +318,7 @@ def solve(self, c, G, h, dims, A, b):
     #^ if/esle
 #^ solve()
 
-def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu):
+def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu, output= 0):
     # returns pair (p,d) of primal/dual infeasibility (maxima)
 
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
@@ -329,8 +336,10 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     #^ for
     toc_neg = time.time()
     itoc_neg = time.process_time()
-    print("time to primal negativity violations 123", toc_neg - tic_neg, "secs")
-    print("time to primal negativity violations 123", itoc_neg - itic_neg, "secs") 
+    if output == 2:
+        print("time to primal negativity violations 123", toc_neg - tic_neg, "secs")
+        print("time to primal negativity violations 123", itoc_neg - itic_neg, "secs")
+    #^ if printing
     max_violation_of_eqn = 0.
 
     tic_marg = time.time()
@@ -385,8 +394,11 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
 
     toc_marg = time.time()
     itoc_marg = time.process_time()
-    print("time to compute violation of marginal eqautions 123: ", toc_marg - tic_marg, "secs")
-    print("time ot compute violation of marginal eqautions 123: ", itoc_marg - itic_marg, "secs") 
+    if output == 2: 
+        print("time to compute violation of marginal eqautions 123: ", toc_marg - tic_marg, "secs")
+        print("time ot compute violation of marginal eqautions 123: ", itoc_marg - itic_marg, "secs")
+    #^ if printing
+    
     primal_infeasability = max(max_violation_of_eqn, max_q_negativity)
     
     # Dual infeasiblility
@@ -427,7 +439,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         #^ for z
     #^ for s
     itoc_idx = time.process_time()
-    print("time to find correct dual idx 123", itoc_idx - itic_idx, "secs")
+    if output == 2:    print("time to find correct dual idx 123", itoc_idx - itic_idx, "secs")
     # non-negativity dual ineqaulity
     
     itic_negD12 = time.process_time()
@@ -479,7 +491,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +1)
         #^ for
         itoc_negD12 = time.process_time()
-        print("time to compute neagtive dual violations 12: ", itoc_negD12 - itic_negD12, "secs")
+        if output == 2: print("time to compute neagtive dual violations 12: ", itoc_negD12 - itic_negD12, "secs")
     #^ if sources
     
     itic_negD13 = time.process_time()
@@ -489,7 +501,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         sy_idx = defaultdict(lambda: 0.)
         for i,sxyz in enumerate(self.quad_of_idx):
             s,x,y,z = sxyz
-            sy_idx[(s,x,z)] = 2*n + len(self.b_sx) + idx_of_sy[(s,z)]
+            sy_idx[(s,x,z)] = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
         #^ for
 
         # mu_xz: dual varaible of the q-t coupling contsraints
@@ -532,7 +544,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +1)
         #^ for
         itoc_negD13 = time.process_time()
-        print("time to compute neagtive dual violations 13: ", itoc_negD13 - itic_negD13, "secs")
+        if output == 2 : print("time to compute neagtive dual violations 13: ", itoc_negD13 - itic_negD13, "secs")
     #^ if sources 
 
     itic_negD23 = time.process_time()
@@ -585,7 +597,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +1)
         #^ for
         itoc_negD23 = time.process_time()
-        print("time to compute neagtive dual violations 23: ", itoc_negD23 - itic_negD23, "secs")
+        if output == 2: print("time to compute neagtive dual violations 23: ", itoc_negD23 - itic_negD23, "secs")
     #^ if sources
     
     return primal_infeasability, dual_infeasability
@@ -609,7 +621,7 @@ def marginal_ab(self,_A, _B, _C, _D, which_sources, sol_rpq):
         if (a,b) in marg_12.keys():
             marg_12[(a,b)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
         else:
-            marg_12[(a,b)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
+            marg_12[(a,b)] = max(0, sol_rpq[ self.sq_vidx( self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx ) ] )
         #^ if
     #^ for 
 
