@@ -6,6 +6,7 @@ path.insert(0,"..")
 from Chicharro_pid import pid, Chicharro_pid_Exception
 
 import time
+import pickle
 from math import log2
 from sys import argv 
 
@@ -61,7 +62,7 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
                 # Compute PID 
                 print("Run Chicharro_PID.pid().")
                 tic = time.time()
-                returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=0, **parms)
+                returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=2, **parms)
                 toc = time.time()
 
                 # Compute deviations from the analytical results
@@ -81,7 +82,7 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
                 returndictdev['Time'] = toc-tic
 
                 # Print the result
-                msg ="""Deviation from analytical results:
+                msg ="""\nDeviation from analytical results:
                 Synergistic information: {CI} %
                 Unique information in X: {UIX} %
                 Unique information in Y: {UIY} %
