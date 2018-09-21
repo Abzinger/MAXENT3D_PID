@@ -1,4 +1,16 @@
-# TRIVARIATE_SYN.py
+# TRIVARIATE_SYN.py -- Python Class
+#
+# Creates the optimization problem needed to compute synergy (also needed for uniqueness)
+#
+# The optimization problems is:
+#
+# min -H(S|XYZ)
+#
+# (c) Abdullah Makkeh, Dirk Oliver Theis
+# Permission to use and modify under Apache License version 2.0
+#
+##########################################################################################
+
 import ecos
 from scipy import sparse
 import numpy as np
@@ -6,7 +18,6 @@ from numpy import linalg as LA
 from collections import defaultdict
 import math
 import time 
-# from collections import defaultdict
 
 # ECOS's exp cone: (r,p,q)   w/   q>0  &  exp(r/q) ≤ p/q
 # Translation:     (0,1,2)   w/   2>0  &  0/2      ≤ ln(1/2)
@@ -18,26 +29,6 @@ def q_vidx(i):
     return 3*i+2
 ln  = math.log
 log = math.log2
-# Creates the optimization problem needed to compute both synergy (also needed for uniqueness)
-# def init(self):
-#     # (c) Abdullah Makkeh, Dirk Oliver Theis
-#     # Permission to use and modify under Apache License version 2.0
-#     # Data for ECOS
-#     self.c            = None
-#     self.G            = None
-#     self.h            = None
-#     self.dims         = dict()
-#     self.A            = None
-#     self.b            = None
-    
-#     # ECOS result
-#     self.sol_rpq    = None
-#     self.sol_slack  = None #
-#     self.sol_lambda = None # dual variables for equality constraints
-#     self.sol_mu     = None # dual variables for generalized ieqs
-#     self.sol_info   = None
-    
-# #^ init
 
 def create_model(self, output = 0):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
@@ -56,91 +47,162 @@ def create_model(self, output = 0):
     Coeff = []
     
     # The q-p coupling equations: q_{*xyz} - p_{sxyz} = 0
+    # ( Expensive step )
     itic_p = time.process_time()
+    
+    Eqn_dict = defaultdict(lambda: 0.)
+    Eqn_dict_num = defaultdict(int)
+    Eqn_dict_acc = defaultdict(list)
+    Var_dict = defaultdict(list)
+    Coeff_dict = defaultdict(list)
+
+    for i,uxyz in enumerate(self.quad_of_idx):
+        u,x,y,z = uxyz
+        q_var = q_vidx(self.idx_of_quad[ (u,x,y,z) ])
+        Var_dict[x,y,z].append( q_var )
+        Coeff_dict[x,y,z].append( +1. )
+        Eqn_dict[u,x,y,z] = i
+        Eqn_dict_num[x,y,z] += 1
+    #^ for uxyz exists
+
     for i,sxyz in enumerate(self.quad_of_idx):
-        eqn     = i
+        s,x,y,z = sxyz
+        temp = [ Eqn_dict[s,x,y,z] ] * Eqn_dict_num[x,y,z]
+        Eqn_dict_acc[s,x,y,z] += temp
+    #^ for sxyz exits
+    
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
         p_var   = p_vidx(i)
-        Eqn.append( eqn )
+        Eqn.append( Eqn_dict[s,x,y,z] )
         Var.append( p_var )
         Coeff.append( -1. )
-        
-        (s,x,y,z) = sxyz
-        for u in self.S:
-            if (u,x,y,z) in self.idx_of_quad.keys():
-                q_var = q_vidx(self.idx_of_quad[ (u,x,y,z) ])
-                Eqn.append( eqn )
-                Var.append( q_var )
-                Coeff.append( +1. )
-            #^ if
-        #^ loop *xyz
-    #^ for sxyz
-    itoc_p = time.process_time()
-    if output == 2: print("Time to create q-p coupling equations [min - H(S|U,V,W)]:", itoc_p - itic_p, "secs")
-    # running number
-    eqn = -1 + len(self.quad_of_idx)
+        Eqn += Eqn_dict_acc[s,x,y,z]
+        Var += Var_dict[x,y,z]
+        Coeff += Coeff_dict[x,y,z]
+    #^ for sxyz exists
     
-    # The sx marginals q_{sx**} = b^x_{sx}
-    itic_m = time.process_time()
-    for s in self.S:
-        for x in self.X:
-            if (s,x) in self.b_sx.keys():
-                eqn += 1
-                for y in self.Y:
-                    for z in self.Z:
-                        if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( 1. )
-                        #^ if
-                    #^ for z
-                #^ for y
-                self.b[eqn] = self.b_sx[ (s,x) ]
-            #^ if sx exists
-        #^ for x
-    #^ for s
+    itoc_p = time.process_time()
+    if output == 2: print("TRIVARIATE_SYN.create_model(): Time to create q-p coupling equations [min - H(S|X,Y,V)]:", itoc_p - itic_p, "secs")
 
+    # running number
+    eqn = -1 + len(self.quad_of_idx) 
+
+    # The marginal constraints 
+    itic_m = time.process_time()   
+
+    # The sx marginals q_{sx**} = b^x_{sx}
+    Eqn_marg = defaultdict(lambda: 0.)
+    Eqn_marg_num = defaultdict(int)
+    Eqn_marg_acc = defaultdict(list)
+    Var_marg = defaultdict(list)
+    Coeff_marg = defaultdict(list)
+    for sx,i in self.b_sx.items():
+        (s,x) = sx
+        eqn += 1
+        Eqn_marg[s,x] = eqn
+    #^ for sx exists
+        
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        if (s,x) in self.b_sx.keys():
+            q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
+            Var_marg[s,x].append(q_var)
+            Coeff_marg[s,x].append(+1.)
+            Eqn_marg_num[s,x] += 1
+        #^ if sx exits
+    # for sxyz
+    
+    for sx,i in self.b_sx.items():
+        (s,x) = sx
+        temp = [ Eqn_marg[s,x] ]*Eqn_marg_num[s,x]
+        Eqn_marg_acc[s,x] += temp
+    #^ for  sx exists    
+    for sx,i in self.b_sx.items():
+        (s,x) = sx
+        Eqn += Eqn_marg_acc[s,x]
+        Var += Var_marg[s,x]
+        Coeff += Coeff_marg[s,x]
+        self.b[ Eqn_marg[s,x] ] = self.b_sx[(s,x)]
+    #^ for sx exists
+    
     # The sy marginals q_{s*y*} = b^y_{sy}
-    for s in self.S:
-        for y in self.Y:
-            if (s,y) in self.b_sy.keys():
-                eqn += 1
-                for x in self.X:
-                    for z in self.Z:
-                        if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( 1. )
-                        #^ if
-                    #^ for z
-                #^ for x
-                self.b[eqn] = self.b_sy[ (s,y) ]                    
-            #^ if sy exists
-        #^ for y
-    #^ for s
+    Eqn_marg = defaultdict(lambda: 0.)
+    Eqn_marg_num = defaultdict(int)
+    Eqn_marg_acc = defaultdict(list)
+    Var_marg = defaultdict(list)
+    Coeff_marg = defaultdict(list)
+    for sy,i in self.b_sy.items():
+        (s,y) = sy
+        eqn += 1
+        Eqn_marg[s,y] = eqn
+    #^ for sy exists
+        
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        if (s,y) in self.b_sy.keys():
+            q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
+            Var_marg[s,y].append(q_var)
+            Coeff_marg[s,y].append(+1.)
+            Eqn_marg_num[s,y] += 1
+        #^ if sy exits
+    # for sxyz
+    
+    for sy,i in self.b_sy.items():
+        (s,y) = sy
+        temp = [ Eqn_marg[s,y] ]*Eqn_marg_num[s,y]
+        Eqn_marg_acc[s,y] += temp
+    #^ for  sy exists   
+        
+    for sy,i in self.b_sy.items():
+        (s,y) = sy
+        Eqn += Eqn_marg_acc[s,y]
+        Var += Var_marg[s,y]
+        Coeff += Coeff_marg[s,y]
+        self.b[ Eqn_marg[s,y] ] = self.b_sy[(s,y)]
+    #^ for sy exists
 
     # The sz marginals q_{s**z} = b^z_{sz}
-    for s in self.S:
-        for z in self.Z:
-            if (s,z) in self.b_sz.keys():
-                eqn += 1
-                for x in self.X:
-                    for y in self.Y:
-                        if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( 1. )
-                        #^ if
-                    #^ for y
-                #^ for x
-                self.b[eqn] = self.b_sz[ (s,z) ]
-            #^ if sz exists
-        #^ for z
-    #^ for s
+    Eqn_marg = defaultdict(lambda: 0.)
+    Eqn_marg_num = defaultdict(int)
+    Eqn_marg_acc = defaultdict(list)
+    Var_marg = defaultdict(list)
+    Coeff_marg = defaultdict(list)
+
+    for sz,i in self.b_sz.items():
+        (s,z) = sz
+        eqn += 1
+        Eqn_marg[s,z] = eqn
+    #^ for sz exists
+    
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        if (s,z) in self.b_sz.keys():
+            q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
+            Var_marg[s,z].append(q_var)
+            Coeff_marg[s,z].append(+1.)
+            Eqn_marg_num[s,z] += 1
+        #^ if sz exits
+    # for sxyz
+    
+    for sz,i in self.b_sz.items():
+        (s,z) = sz
+        temp = [ Eqn_marg[s,z] ]*Eqn_marg_num[s,z]
+        Eqn_marg_acc[s,z] += temp
+    #^ for  sz exists    
+        
+    for sz,i in self.b_sz.items():
+        (s,z) = sz
+        Eqn += Eqn_marg_acc[s,z]
+        Var += Var_marg[s,z]
+        Coeff += Coeff_marg[s,z]
+        self.b[ Eqn_marg[s,z] ] = self.b_sz[(s,z)]
+    #^ for sz exists
+
     itoc_m = time.process_time()
-    if output == 2: print("Time to create marginal equations [min - H(S|U,V,W)]:", itoc_m - itic_m, "secs")
+    if output == 2: print("TRIVARIATE_SYN.create_model(): Time to create marginal equations [min - H(S|X,Y,Z)]:", itoc_m - itic_m, "secs")
+
+    # Store A 
     self.A = sparse.csc_matrix( (Coeff, (Eqn,Var)), shape=(n_cons,n_vars), dtype=np.double)
     
     # Generalized ieqs: gen.nneg of the variable quadruple (r_i,q_i,p_i), i=0,dots,n-1:
@@ -176,13 +238,17 @@ def create_model(self, output = 0):
         self.c[ r_vidx(i) ] = -1.
     #^ for xyz
     toc_all = time.process_time()
-    if output > 0: print("Time to create model [min - H(S|U,V,W)]:", toc_all - tic_all, "secs") 
+    if output > 0: print("TRIVARIATE_SYN.create_model(): Time to create model [min - H(S|X,Y,Z)]:", toc_all - tic_all, "secs") 
     return self.c, self.G, self.h, self.dims, self.A, self.b
 #^ create_model()
 
-def solve(self, c, G, h, dims, A, b):
+
+
+def solve(self, c, G, h, dims, A, b, output):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
+
+    itic = time.process_time()
     self.marg_xyz = None # for cond[]mutinf computation below
     
     if self.verbose != None:
@@ -196,33 +262,46 @@ def solve(self, c, G, h, dims, A, b):
         self.sol_lambda = solution['y']
         self.sol_mu     = solution['z']
         self.sol_info   = solution['info']
+        itoc = time.process_time()
+        if output == 2: print("TRIVARIATE_SYN.solve():Time to solve the Exponential Program of H(S|X,Y,Z):", itoc - itic, "secs") 
         return "success", self.sol_rpq, self.sol_slack, self.sol_lambda, self.sol_mu, self.sol_info
     else: # "x" not in dict solution
         return "x not in dict solution -- No Solution Found!!!"
     #^ if/esle
 #^ solve()
 
-def condentropy(self, sol_rpq):
+
+def condentropy(self, sol_rpq, output = 0):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
     # compute cond entropy of the distribution in self.sol_rpq
+    
+    itic = time.process_time()
+    marg_s = defaultdict(lambda: 0.)
     mysum = 0.
-    for x in self.X:
-        for y in self.Y:
-            for z in self.Z:
-                marg_s = 0.
-                q_list = [ q_vidx(self.idx_of_quad[ (s,x,y,z) ]) for s in self.S if (s,x,y,z) in self.idx_of_quad.keys()]
-                for i in q_list:
-                    marg_s += max(0,sol_rpq[i])
-                for i in q_list:
-                    q = sol_rpq[i]
-                    if q > 0:  mysum -= q*log(q/marg_s)
-                #^ for i
-            #^ for z
-        #^ for y
-    #^ for x
+    for sxyz,i in self.idx_of_quad.items():
+        s,x,y,z = sxyz
+        marg_s[(x,y,z)] += sol_rpq[q_vidx(i)]
+    #^ for 
+
+    for sxyz,i in self.idx_of_quad.items():
+        s,x,y,z = sxyz
+        q_sxyz = sol_rpq[q_vidx(i)]
+        if marg_s[(x,y,z)] > 0 and q_sxyz > 0:
+            mysum -= q_sxyz*log(q_sxyz/marg_s[(x,y,z)])
+        #^ if
+    #^ for
+    itoc = time.process_time()
+
+    if output == 2: print("TRIVARIATE_SYN.condentropy(): Time to compute condent H(S|XYZ):", itoc - itic, "secs")
+
     return mysum
 #^ condentropy()
 
-def check_feasibility(self, sol_rpq, sol_lambda, output = 0): # returns pair (p,d) of primal/dual infeasibility (maxima)
+def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
+    # returns pair (p,d) of primal/dual infeasibility (maxima)
 
     # Primal infeasiblility
     
@@ -233,64 +312,52 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0): # returns pair (p,
         max_q_negativity = max(max_q_negativity, -sol_rpq[q_vidx(i)])
     #^ for
     itoc_neg = time.process_time()
-    if output == 2: print("time to compute primal negative violations I: ", itoc_neg - itic_neg, "secs")  
+    if output == 2: print("TRIVARIATE_SYN.check_feasibility(): Time to compute primal negative violations [min - H(S|X,Y,Z)]: ", itoc_neg - itic_neg, "secs")  
 
 
-    # Marginal equations 
+    # Marginal equations
+    # ( Expensive Step )
     max_violation_of_eqn = 0.
     itic_marg = time.process_time()    
     # sx** - marginals:
-    for sx in self.b_sx.keys():
-        mysum = self.b_sx[sx]
-        for y in self.Y:
-            for z in self.Z:
-                s,x = sx
-                if (s,x,y,z) in self.idx_of_quad.keys():
-                    i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[q_vidx(i)])
-                    mysum -= q
-                #^ if
-            #^ for z
-        #^ for y 
+    sol_b_sx = defaultdict(lambda: 0.)
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        sol_b_sx[s,x] += max(0., sol_rpq[q_vidx(i)])
+    #^ for sxyz exists 
+    for sx,i in self.b_sx.items():
+        s,x  = sx
+        mysum = i - sol_b_sx[s,x]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
-    #^ fox sx
-
+    #^ for sx exists
+    
     # s*y* - marginals:
-    for sy in self.b_sy.keys():
-        mysum = self.b_sy[sy]
-        for x in self.X:
-            for z in self.Z:
-                s,y = sy
-                if (s,x,y,z) in self.idx_of_quad.keys():
-                    i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[q_vidx(i)])
-                    mysum -= q
-                #^ if
-            #^ for z
-        #^ for x
+    sol_b_sy = defaultdict(lambda: 0.)
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        sol_b_sy[s,y] += max(0., sol_rpq[q_vidx(i)])
+    #^ for sxyz exists 
+    for sy,i in self.b_sy.items():
+        s,y  = sy
+        mysum = i - sol_b_sy[s,y]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
-    #^ fox sy
-
+    
     # s**z - marginals:
-    for sz in self.b_sz.keys():
-        mysum = self.b_sz[sz]
-        for x in self.X:
-            for y in self.Y:
-                s,z = sz
-                if (s,x,y,z) in self.idx_of_quad.keys():
-                    i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[q_vidx(i)])
-                    mysum -= q
-                #^ if
-            #^ for y
-        #^ for x
+    sol_b_sz = defaultdict(lambda: 0.)
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        sol_b_sz[s,z] += max(0., sol_rpq[q_vidx(i)])
+    #^ for sxyz exists 
+    for sz,i in self.b_sz.items():
+        s,z  = sz
+        mysum = i - sol_b_sz[s,z]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
-    #^ fox sz
+    #^ for sz exists
 
     primal_infeasability = max(max_violation_of_eqn,max_q_negativity)
 
     itoc_marg = time.process_time()
-    if output == 2: print("time to compute marginal violations I: ", itoc_marg - itic_marg, "secs") 
+    if output == 2: print("TRIVARIATE_SYN.check_feasibility(): Time to compute marginal violations [min - H(S|X,Y,Z)]:", itoc_marg - itic_marg, "secs") 
 
     # Dual infeasiblility
 
@@ -358,9 +425,14 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0): # returns pair (p,
         )
     #^ for
     itoc_negD = time.process_time()
-    if output == 2: print("time to compute dual negative violations I: ", itoc_negD - itic_negD, "secs")
+    if output == 2: print("TRIVARIATE_SYN.check_feasibility(): Time to compute dual negative violations [min - H(S|X,Y,Z)]:", itoc_negD - itic_negD, "secs")
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 
+
 def dual_value(self, sol_lambda, b):
     return -np.dot(sol_lambda, b)
+#^ dual_value()
+
+
+#EOF

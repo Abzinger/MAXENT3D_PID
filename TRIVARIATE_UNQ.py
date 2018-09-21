@@ -1,4 +1,16 @@
-# TRIVARIATE_UNQ.py
+# TRIVARIATE_UNQ.py -- Python Class
+#
+# Creates the optimization problems needed to compute unique information
+#
+# The optimization problems are:
+#
+# min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)
+#
+# (c) Abdullah Makkeh, Dirk Oliver Theis
+# Permission to use and modify under Apache License version 2.0
+#
+#########################################################################
+
 import ecos
 from scipy import sparse
 import numpy as np
@@ -6,12 +18,14 @@ from numpy import linalg as LA
 from collections import defaultdict
 import math
 import time
-# from collections import defaultdict
+from collections import defaultdict
 ln  = math.log
 log = math.log2
-# Creates the optimization problem needed to compute both synergy (also needed for uniqueness)
 
 def core_initialization(_S, X_1, X_2, b_sx1, b_sx2, idx_of, of_idx):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
+
     for s in _S:
         for x1 in X_1:
             if (s,x1) in b_sx1.keys():
@@ -24,7 +38,15 @@ def core_initialization(_S, X_1, X_2, b_sx1, b_sx2, idx_of, of_idx):
             #^if sx1
         #^ for x1
     #^ for s
+
+    return 0
+#^ core_initialization()
+
+
 def initialization(self, which_sources):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
+
     idx_of_trip  = dict()
     trip_of_idx  = []
 
@@ -34,8 +56,12 @@ def initialization(self, which_sources):
         core_initialization(self.S, self.X, self.Z, self.b_sx, self.b_sz, idx_of_trip, trip_of_idx)
     elif which_sources == [2,3]:
         core_initialization(self.S, self.Y, self.Z, self.b_sy, self.b_sz, idx_of_trip, trip_of_idx)
+    else:
+        print("TRIVARIATE_UNQ.initialization(): which_sources takes the values [1,2], [1,3], or [2,3]")
+        exit(1)
+
     return idx_of_trip, trip_of_idx
-#^ initialization 
+#^ initialization()
 
 # ECOS's exp cone: (r,p,w)     w/   w>0  &  exp(r/w) ≤ p/w
 # Variables here:  (r,p,w)U(q)
@@ -49,7 +75,7 @@ def sw_vidx(i):
 def sq_vidx(self, i, ltrip_of_idx):
     return 3*ltrip_of_idx + i
 
-def create_model(self, which_sources, output=0):
+def create_model(self, which_sources, output):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
 
@@ -113,7 +139,12 @@ def create_model(self, which_sources, output=0):
         #^if SYZ
     #^ for stv
     toc_w = time.process_time()
-    if output == 2: print("Time to create q-w coupling equations [min -H(S|T,W)]:", toc_w - tic_w, "secs")
+
+    if output == 2:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.create_model(): Time to create q-w coupling equations [min -H(S|X,Y)]:", toc_w - tic_w, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.create_model(): Time to create q-w coupling equations [min -H(S|X,Z)]:", toc_w - tic_w, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.create_model(): Time to create q-w coupling equations [min -H(S|Y,Z)]:", toc_w - tic_w, "secs")
+
     # running number
     eqn = -1 + len(trip_of_idx)
     
@@ -123,122 +154,216 @@ def create_model(self, which_sources, output=0):
     #         if Sources = Y,Z  q_{**tv} - p_{stv} = 0
     # ( Expensive step )
     tic_p = time.process_time()
-    for i,stv in enumerate(trip_of_idx):
-        eqn     += 1
-        p_var   = sp_vidx(i)
-        Eqn.append( eqn )
-        Var.append( p_var )
-        Coeff.append( -1. )
-        
-        (s,t,v) = stv
-        if which_sources == [1,2]:
+
+    Eqn_dict = defaultdict(lambda: 0.)
+    Eqn_dict_num = defaultdict(int)
+    Eqn_dict_acc = defaultdict(list)
+    Var_dict = defaultdict(list)
+    Coeff_dict = defaultdict(list)
+
+    if which_sources == [1,2]:
+        for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            eqn     += 1
+            Eqn_dict[s,t,v] = eqn
+        #^ for 
+            
+        for i,utvw in enumerate(self.quad_of_idx):
+            u,t,v,w = utvw
             if (t,v) in self.b_xy.keys():
-                for u1 in self.S:
-                    for u2 in self.Z:
-                        if (u1,t,v,u2) in self.idx_of_quad.keys(): 
-                            q_var = self.sq_vidx(self.idx_of_quad[ (u1,t,v,u2) ], ltrip_of_idx)
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( +1. )
-                        #^ if q_{*tv*}
-                    #^ for u2
-                #^ for u2
+                Eqn_dict_num[t,v] += 1
+                Coeff_dict[t,v].append(+1.)
+                q_var = self.sq_vidx(self.idx_of_quad[ (u,t,v,w) ], ltrip_of_idx)
+                Var_dict[t,v].append(q_var)
             #^ if *xy* exists
-        #^ if SXY
-        elif which_sources == [1,3]:
+        #^ for utvw
+        for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            temp = [Eqn_dict[s,t,v]]*Eqn_dict_num[t,v]
+            Eqn_dict_acc[s,t,v] += temp
+        # for 
+    elif which_sources == [1,3]:
+        for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            eqn     += 1
+            Eqn_dict[s,t,v] = eqn
+        #^ for
+        for i,utwv in enumerate(self.quad_of_idx):
+            u,t,w,v = utwv
             if (t,v) in self.b_xz.keys():
-                for u1 in self.S:
-                    for u2 in self.Y: 
-                        if (u1,t,u2,v) in self.idx_of_quad.keys(): 
-                            q_var = self.sq_vidx(self.idx_of_quad[ (u1,t,u2,v) ], ltrip_of_idx)
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( +1. )
-                        #^ if q_{*t*v}
-                    #^ for u2
-                #^ for u1
+                Eqn_dict_num[t,v] += 1
+                Coeff_dict[t,v].append(+1.)
+                q_var = self.sq_vidx(self.idx_of_quad[ (u,t,w,v) ], ltrip_of_idx)
+                Var_dict[t,v].append(q_var)
             #^ if *x*z exists
-        #^ if SXZ
-        elif which_sources == [2,3]:
+        #^ for utwv
+
+        for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            temp = [Eqn_dict[s,t,v]]*Eqn_dict_num[t,v]
+            Eqn_dict_acc[s,t,v] += temp
+        # for
+    elif which_sources == [2,3]:
+        for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            eqn     += 1
+            Eqn_dict[s,t,v] = eqn
+        #^ for
+        for i,uwtv in enumerate(self.quad_of_idx):
+            u,w,t,v = uwtv
             if (t,v) in self.b_yz.keys():
-                for u1 in self.S:
-                    for u2 in self.X: 
-                        if (u1,u2,t,v) in self.idx_of_quad.keys(): 
-                            q_var = self.sq_vidx(self.idx_of_quad[ (u1,u2,t,v) ], ltrip_of_idx)
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( +1. )
-                        #^ if q_{**tv}
-                    #^ for u2
-                #^ for u1
+                Eqn_dict_num[t,v] += 1
+                Coeff_dict[t,v].append(+1.)
+                q_var = self.sq_vidx(self.idx_of_quad[ (u,w,t,v) ], ltrip_of_idx)
+                Var_dict[t,v].append(q_var)
             #^ if **yz exists
-        #^ if SYZ
+        #^ for utwv
+
+        for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            temp = [Eqn_dict[s,t,v]]*Eqn_dict_num[t,v]
+            Eqn_dict_acc[s,t,v] += temp
+        # for
+    #^ if which sources
+    
+    for i,stv in enumerate(trip_of_idx):
+            s,t,v = stv
+            p_var   = sp_vidx(i)
+            Eqn.append( Eqn_dict[s,t,v] )
+            Eqn += Eqn_dict_acc[s,t,v]
+            Var.append( p_var )
+            Var += Var_dict[t,v]
+            Coeff.append( -1. )
+            Coeff += Coeff_dict[t,v] 
     #^ for stv
     toc_p = time.process_time()
-    if output == 2: print("Time to create q-t coupling equations [min -H(S|T,W)]:", toc_p - tic_p, "secs")
+    
+    if output == 2:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.create_model(): Time to create q-t coupling equations [min -H(S|X,Y)]:", toc_p - tic_p, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.create_model(): Time to create q-t coupling equations [min -H(S|X,Z)]:", toc_p - tic_p, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.create_model(): Time to create q-t coupling equations [min -H(S|Y,Z)]:", toc_p - tic_p, "secs")
+
+    # Create the marginal constraints
     
     # The sx marginals q_{sx**} = b^x_{sx}
     tic_m = time.process_time()
-    for s in self.S:
-        for x in self.X:
-            if (s,x) in self.b_sx.keys():
-                eqn += 1
-                for y in self.Y:
-                    for z in self.Z:
-                        if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( 1. )
-                        #^ if sxyz exists
-                        self.b[eqn] = self.b_sx[ (s,x) ]
-                    #^ for z
-                #^ for y
-            #^ if sx exists
-        #^ for x
-    #^ for s
+    Eqn_marg = defaultdict(lambda: 0.)
+    Eqn_marg_num = defaultdict(int)
+    Eqn_marg_acc = defaultdict(list)
+    Var_marg = defaultdict(list)
+    Coeff_marg = defaultdict(list)
+
+    for sx,i in self.b_sx.items():
+        (s,x) = sx
+        eqn += 1
+        Eqn_marg[s,x] = eqn
+    #^ for sx exists
+        
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        if (s,x) in self.b_sx.keys():
+            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
+            Var_marg[s,x].append(q_var)
+            Coeff_marg[s,x].append(+1.)
+            Eqn_marg_num[s,x] += 1
+            self.b[ Eqn_marg[s,x] ] = self.b_sx[(s,x)]
+        #^ if sx exits
+    # for sxyz
+    
+    for sx,i in self.b_sx.items():
+        (s,x) = sx
+        temp = [ Eqn_marg[s,x] ]*Eqn_marg_num[s,x]
+        Eqn_marg_acc[s,x] += temp
+    #^ for  sx exists    
+    
+    for sx,i in self.b_sx.items():
+        (s,x) = sx
+        Eqn += Eqn_marg_acc[s,x]
+        Var += Var_marg[s,x]
+        Coeff += Coeff_marg[s,x]
+    #^ for sx exists
 
     # The sy marginals q_{s*y*} = b^y_{sy}
-    for s in self.S:
-        for y in self.Y:
-            if (s,y) in self.b_sy.keys():
-                eqn += 1
-                for x in self.X:
-                    for z in self.Z:
-                        if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( 1. )
-                        #^ if sxyz exists
-                        self.b[eqn] = self.b_sy[ (s,y) ]
-                    #^ for z
-                #^ for x
-            #^ if sy exists
-        #^ for y
-    #^ for s
+
+    Eqn_marg = defaultdict(lambda: 0.)
+    Eqn_marg_num = defaultdict(int)
+    Eqn_marg_acc = defaultdict(list)
+    Var_marg = defaultdict(list)
+    Coeff_marg = defaultdict(list)
+    for sy,i in self.b_sy.items():
+        (s,y) = sy
+        eqn += 1
+        Eqn_marg[s,y] = eqn
+    #^ for sy exists
+        
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        if (s,y) in self.b_sy.keys():
+            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
+            Var_marg[s,y].append(q_var)
+            Coeff_marg[s,y].append(+1.)
+            Eqn_marg_num[s,y] += 1
+            self.b[ Eqn_marg[s,y] ] = self.b_sy[(s,y)]
+        #^ if sy exits
+    # for sxyz
+    
+    for sy,i in self.b_sy.items():
+        (s,y) = sy
+        temp = [ Eqn_marg[s,y] ]*Eqn_marg_num[s,y]
+        Eqn_marg_acc[s,y] += temp
+    #^ for  sy exists   
+        
+    for sy,i in self.b_sy.items():
+        (s,y) = sy
+        Eqn += Eqn_marg_acc[s,y]
+        Var += Var_marg[s,y]
+        Coeff += Coeff_marg[s,y]
+    #^ for sy exists
 
     # The sz marginals q_{s**z} = b^z_{sz}
-    for s in self.S:
-        for z in self.Z:
-            if (s,z) in self.b_sz.keys():
-                eqn += 1
-                for x in self.X:
-                    for y in self.Y:
-                        if (s,x,y,z) in self.idx_of_quad.keys():
-                            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
-                            Eqn.append( eqn )
-                            Var.append( q_var )
-                            Coeff.append( 1. )
-                        #^ if sxyz exits
-                        self.b[eqn] = self.b_sz[ (s,z) ]
-                    #^ for y
-                #^ for x
-            #^ if sz exists
-        #^ for z
-    #^ for s
+    Eqn_marg = defaultdict(lambda: 0.)
+    Eqn_marg_num = defaultdict(int)
+    Eqn_marg_acc = defaultdict(list)
+    Var_marg = defaultdict(list)
+    Coeff_marg = defaultdict(list)
+
+    for sz,i in self.b_sz.items():
+        (s,z) = sz
+        eqn += 1
+        Eqn_marg[s,z] = eqn
+    #^ for sz exists
+    
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        if (s,z) in self.b_sz.keys():
+            q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
+            Var_marg[s,z].append(q_var)
+            Coeff_marg[s,z].append(+1.)
+            Eqn_marg_num[s,z] += 1
+            self.b[ Eqn_marg[s,z] ] = self.b_sz[(s,z)]
+        #^ if sz exits
+    # for sxyz
+    
+    for sz,i in self.b_sz.items():
+        (s,z) = sz
+        temp = [ Eqn_marg[s,z] ]*Eqn_marg_num[s,z]
+        Eqn_marg_acc[s,z] += temp
+    #^ for  sz exists    
+        
+    for sz,i in self.b_sz.items():
+        (s,z) = sz
+        Eqn += Eqn_marg_acc[s,z]
+        Var += Var_marg[s,z]
+        Coeff += Coeff_marg[s,z]
+    #^ for sz exists
     toc_m = time.process_time()
-    if output == 2: print("Time to create marginal equations [min -H(S|T,W)]:", toc_m - tic_m, "secs")
+    
+    if output == 2:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.create_model(): Time to create marginal equations [min -H(S|X,Y)]:", toc_m - tic_m, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.create_model(): Time to create marginal equations [min -H(S|X,Z)]:", toc_m - tic_m, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.create_model(): Time to create marginal equations [min -H(S|Y,Z)]:", toc_m - tic_m, "secs")
+
+    # Store the constraints in A
     tic_rest = time.process_time()
     self.A = sparse.csc_matrix( (Coeff, (Eqn,Var)), shape=(n_cons,n_vars), dtype=np.double)
     
@@ -248,7 +373,6 @@ def create_model(self, which_sources, output=0):
     Coeff = []
 
     # Adding q_{s,x,y,z} >= 0 or q_{s,x,y,z} is free variable
-
     for i,sxyz in enumerate(self.quad_of_idx):
         q_var = self.sq_vidx(i, ltrip_of_idx)
         Ieq.append( len(Ieq) )
@@ -287,16 +411,24 @@ def create_model(self, which_sources, output=0):
     #^ for stv
 
     toc_rest = time.process_time()
-    if output == 2: print("Time to create the matrices [min -H(S|T,W)]:", toc_rest - tic_rest, "secs")
+    if output == 2:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.create_model(): Time to create the matrices [min -H(S|X,Y)]:", toc_rest - tic_rest, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.create_model(): Time to create the matrices [min -H(S|X,Z)]:", toc_rest - tic_rest, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.create_model(): Time to create the matrices [min -H(S|Y,Z)]:", toc_rest - tic_rest, "secs")
     toc_all = time.process_time()
-    if output > 0: print("Time to create model [min -H(S|T,W)]:", toc_all - tic_all, "secs")
+    if output > 0:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.create_model(): Time to create model [min -H(S|X,Y)]:", toc_all - tic_all, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.create_model(): Time to create model [min -H(S|X,Z)]:", toc_all - tic_all, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.create_model(): Time to create model [min -H(S|Y,Z)]:", toc_all - tic_all, "secs")
+
     return self.c, self.G, self.h, self.dims, self.A, self.b
 
 #^ create_model()
 
-def solve(self, c, G, h, dims, A, b):
+def solve(self, c, G, h, dims, A, b, output):
     # (c) Abdullah Makkeh, Dirk Oliver Theis
     # Permission to use and modify under Apache License version 2.0
+    itic = time.process_time()
     self.marg_xyz = None # for cond[]mutinf computation below
     
     if self.verbose != None:
@@ -312,15 +444,18 @@ def solve(self, c, G, h, dims, A, b):
         self.sol_lambda = solution['y']
         self.sol_mu     = solution['z']
         self.sol_info   = solution['info']
+        itoc = time.process_time()
+        if output == 2: print("TRIVARIATE_UNQ.solve(): Time to solve the Exponential Program of H(S|W,T)", itoc - itic, "secs") 
         return "success", self.sol_rpq, self.sol_slack, self.sol_lambda, self.sol_mu, self.sol_info
     else: # "x" not in dict solution
-        return "x not in dict solution -- No Solution Found!!!"
+        return "TRIVARIATE_UNQ.solve(): x not in dict solution -- No Solution Found!!!"
     #^ if/esle
 #^ solve()
 
 def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu, output= 0):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
     # returns pair (p,d) of primal/dual infeasibility (maxima)
-
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
 
     n = len(trip_of_idx)
@@ -328,7 +463,6 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     # Primal infeasiblility
     
     # non-negative ineqaulity
-    tic_neg = time.time()
     itic_neg = time.process_time()
     max_q_negativity = 0.
     for i in range(len(self.quad_of_idx)):
@@ -337,66 +471,54 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     toc_neg = time.time()
     itoc_neg = time.process_time()
     if output == 2:
-        print("time to primal negativity violations 123", toc_neg - tic_neg, "secs")
-        print("time to primal negativity violations 123", itoc_neg - itic_neg, "secs")
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute primal negativity violations [min -H(S|XY)]:", itoc_neg - itic_neg, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute primal negativity violations [min -H(S|XZ)]:", itoc_neg - itic_neg, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute primal negativity violations [min -H(S|YZ)]:", itoc_neg - itic_neg, "secs")
     #^ if printing
     max_violation_of_eqn = 0.
 
-    tic_marg = time.time()
     itic_marg = time.process_time()
     # sx** - marginals:
-    for sx in self.b_sx.keys():
-        mysum = self.b_sx[sx]
-        for y in self.Y:
-            for z in self.Z:
-                s,x = sx
-                if (s,x,y,z) in self.idx_of_quad.keys():
-                    i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
-                    mysum -= q
-                #^ if
-            #^ for z
-        #^ for y 
+    sol_b_sx = defaultdict(lambda: 0.)
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        sol_b_sx[s,x] += max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+    #^ for sxyz exists 
+    for sx,i in self.b_sx.items():
+        s,x  = sx
+        mysum = i - sol_b_sx[s,x]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
-    #^ fox sx
-
+    #^ for sx exists
+    
     # s*y* - marginals:
-    for sy in self.b_sy.keys():
-        mysum = self.b_sy[sy]
-        for x in self.X:
-            for z in self.Z:
-                s,y = sy
-                if (s,x,y,z) in self.idx_of_quad.keys():
-                    i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
-                    mysum -= q
-                #^ if
-            #^ for z
-        #^ for x
+    sol_b_sy = defaultdict(lambda: 0.)
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        sol_b_sy[s,y] += max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+    #^ for sxyz exists 
+    for sy,i in self.b_sy.items():
+        s,y  = sy
+        mysum = i - sol_b_sy[s,y]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
-    #^ fox sy
-
+    #^ for sy exists
+    
     # s**z - marginals:
-    for sz in self.b_sz.keys():
-        mysum = self.b_sz[sz]
-        for x in self.X:
-            for y in self.Y:
-                s,z = sz
-                if (s,x,y,z) in self.idx_of_quad.keys():
-                    i = self.idx_of_quad[(s,x,y,z)]
-                    q = max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
-                    mysum -= q
-                #^ if
-            #^ for y
-        #^ for x
+    sol_b_sz = defaultdict(lambda: 0.)
+    for i,sxyz in enumerate(self.quad_of_idx):
+        s,x,y,z = sxyz
+        sol_b_sz[s,z] += max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+    #^ for sxyz exists 
+    for sz,i in self.b_sz.items():
+        s,z  = sz
+        mysum = i - sol_b_sz[s,z]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
-    #^ fox sz
-
-    toc_marg = time.time()
+    #^ for sz exists
     itoc_marg = time.process_time()
-    if output == 2: 
-        print("time to compute violation of marginal eqautions 123: ", toc_marg - tic_marg, "secs")
-        print("time ot compute violation of marginal eqautions 123: ", itoc_marg - itic_marg, "secs")
+    
+    if output == 2:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute violation of marginal eqautions [min -H(S|XY)]:", itoc_marg - itic_marg, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute violation of marginal eqautions [min -H(S|XZ)]:", itoc_marg - itic_marg, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute violation of marginal eqautions [min -H(S|YZ)]:", itoc_marg - itic_marg, "secs")
     #^ if printing
     
     primal_infeasability = max(max_violation_of_eqn, max_q_negativity)
@@ -439,7 +561,12 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         #^ for z
     #^ for s
     itoc_idx = time.process_time()
-    if output == 2:    print("time to find correct dual idx 123", itoc_idx - itic_idx, "secs")
+    
+    if output == 2:
+        if which_sources == [1,2]: print("TRIVARIATE_UNQ.check_feasibility(): Time to find correct dual idx [min -H(S|XY)]:", itoc_idx - itic_idx, "secs")
+        if which_sources == [1,3]: print("TRIVARIATE_UNQ.check_feasibility(): Time to find correct dual idx [min -H(S|XZ)]:", itoc_idx - itic_idx, "secs")
+        if which_sources == [2,3]: print("TRIVARIATE_UNQ.check_feasibility(): Time to find correct dual idx [min -H(S|YZ)]:", itoc_idx - itic_idx, "secs")
+
     # non-negativity dual ineqaulity
     
     itic_negD12 = time.process_time()
@@ -491,7 +618,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +1)
         #^ for
         itoc_negD12 = time.process_time()
-        if output == 2: print("time to compute neagtive dual violations 12: ", itoc_negD12 - itic_negD12, "secs")
+        if output == 2: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute neagtive dual violations [min -H(S|XY)]:", itoc_negD12 - itic_negD12, "secs")
     #^ if sources
     
     itic_negD13 = time.process_time()
@@ -544,7 +671,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +1)
         #^ for
         itoc_negD13 = time.process_time()
-        if output == 2 : print("time to compute neagtive dual violations 13: ", itoc_negD13 - itic_negD13, "secs")
+        if output == 2 : print("TRIVARIATE_UNQ.check_feasibility(): Time to compute neagtive dual violations [min -H(S|XZ)]:", itoc_negD13 - itic_negD13, "secs")
     #^ if sources 
 
     itic_negD23 = time.process_time()
@@ -597,201 +724,149 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             #   +1)
         #^ for
         itoc_negD23 = time.process_time()
-        if output == 2: print("time to compute neagtive dual violations 23: ", itoc_negD23 - itic_negD23, "secs")
+        if output == 2: print("TRIVARIATE_UNQ.check_feasibility(): Time to compute neagtive dual violations [min -H(S|YZ)]:", itoc_negD23 - itic_negD23, "secs")
     #^ if sources
-    
+     
     return primal_infeasability, dual_infeasability
 #^ check_feasibility()    
 
 def dual_value(self, sol_lambda, b):
     return -np.dot(sol_lambda, b)
 
-def marginal_ab(self,_A, _B, _C, _D, which_sources, sol_rpq):
-    # provide the positive marginals all (a,b) in a system  (a,b,c,d)
-    marg_12 = dict()
-    marg_13 = dict()
-    marg_14 = dict()
-    marg_23 = dict()
-    marg_24 = dict()
-    marg_34 = dict()
+def marginals(self, which_sources, sol_rpq, output):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
+    # provide the positive marginals all of a pdf for random varibles (A,B,C,D)
+    
+    itic = time.process_time()
+
+    # First order marginals
+    marg_S = defaultdict(float)
+    marg_X = defaultdict(float)
+    marg_Y = defaultdict(float)
+    marg_Z = defaultdict(float)
+
+    # Second order marginals 
+    marg_SX = defaultdict(float)
+    marg_SY = defaultdict(float)
+    marg_SZ = defaultdict(float)
+    marg_XY = defaultdict(float)
+    marg_XZ = defaultdict(float)
+    marg_YZ = defaultdict(float)
+
+    # Third order marginals
+    marg_SXY = defaultdict(float)
+    marg_SXZ = defaultdict(float)
+    marg_SYZ = defaultdict(float)
+
+    # Initialize the triplet 
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
     ltrip_of_idx = len(trip_of_idx)
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if (a,b) in marg_12.keys():
-            marg_12[(a,b)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_12[(a,b)] = max(0, sol_rpq[ self.sq_vidx( self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx ) ] )
-        #^ if
-    #^ for 
 
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if (a,c) in marg_13.keys():
-            marg_13[(a,c)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_13[(a,c)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for 
-
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if (a,d) in marg_14.keys():
-            marg_14[(a,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_14[(a,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for 
-
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if (b,c) in marg_23.keys():
-            marg_23[(b,c)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_23[(b,c)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
+    # Compute the marginals 
+    for sxyz,i in self.idx_of_quad.items():
+        s,x,y,z = sxyz
+        marg_S[s] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_X[x] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_Y[y] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_Z[z] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_SX[(s,x)] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_SY[(s,y)] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_SZ[(s,z)] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_XY[(x,y)] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_XZ[(x,z)] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_YZ[(y,z)] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_SXY[(s,x,y)] += max(0,sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_SXZ[(s,x,z)] += max(0,sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+        marg_SYZ[(s,y,z)] += max(0,sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
     #^ for
+    itoc = time.process_time()
+    if output == 2:
+        if which_sources == [1,2]:
+            print("TRIVARIATE_UNQ.marginals(): Time to compute marginals() of H(S|XY):", itoc - itic, "secs")
+        elif which_sources == [1,3]:
+            print("TRIVARIATE_UNQ.marginals(): Time to compute marginals() of H(S|XZ):", itoc - itic, "secs")
+        elif which_sources == [2,3]:
+            print("TRIVARIATE_UNQ.marginals(): Time to compute marginals() of H(S|YZ):", itoc - itic, "secs")
+        #^ if sources
+    #^ if printing
+    
+    return marg_S, marg_X, marg_Y, marg_Z, marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ, marg_SXY, marg_SXZ, marg_SYZ
 
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if (b,d) in marg_24.keys():
-            marg_24[(b,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_24[(b,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for
+#^ marginals()
 
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if (c,d) in marg_34.keys():
-            marg_34[(c,d)] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_34[(c,d)] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if 
-    #^ for
-    return marg_12, marg_13, marg_14, marg_23, marg_24, marg_34
-#^ marginal_ab()
 
-def marginal_abc(self, _A, _B, _C, _D, which_sources, sol_rpq):
-    # provide the positive marginals all (a,b,c) in a system  (a,b,c,d)
-    marg = dict()
-    idx_of_trip,trip_of_idx = self.initialization(which_sources)
-    ltrip_of_idx = len(trip_of_idx)
-    for a in _A:
-        for b in _B:
-            for c in _C:
-                for d in _D:
-                    if which_sources == [1,2]: w = (a,b,c,d)
-                    elif which_sources == [1,3]: w = (a,b,d,c)
-                    elif which_sources == [2,3]: w = (a,d,b,c)                    
-                    if w in self.idx_of_quad.keys():
-                        if (a,b,c) in marg.keys():
-                            marg[(a,b,c)] += max(0,sol_rpq[self.sq_vidx(self.idx_of_quad[ w ], ltrip_of_idx)])
-                        else:
-                            marg[(a,b,c)] = max(0,sol_rpq[self.sq_vidx(self.idx_of_quad[ w ], ltrip_of_idx)])
-                        #^ if (a,b,c) is a key
-                    #^ if w exists
-                #^ for d
-            #^ for c
-        #^for b
-    #^ for a 
-    return marg
-#^ marginal_abc()
-
-def condentropy_2vars(self, which_sources, sol_rpq):
+def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, marg_YZ, marg_SXY, marg_SXZ, marg_SYZ):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
     # compute cond entropy of the distribution in self.sol_rpq
+    
     mysum = 0.
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
     if which_sources == [1,2]:
+        itic = time.process_time()
         # H( S | X, Y )
-        marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        marg_SXY = self.marginal_abc(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        for s in self.S:
-            for x in self.X:
-                for y in self.Y:
-                    if (s,x,y) in idx_of_trip.keys() and marg_XY[(x,y)] > 0 and  marg_SXY[(s,x,y)] > 0:
-                        # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
-                        mysum -= marg_SXY[(s,x,y)]*log(marg_SXY[(s,x,y)]/marg_XY[(x,y)])    
+        for sxy in idx_of_trip.keys():
+            s,x,y = sxy
+            if marg_XY[(x,y)] > 0 and  marg_SXY[(s,x,y)] > 0:
+                # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
+                mysum -= marg_SXY[(s,x,y)]*log(marg_SXY[(s,x,y)]/marg_XY[(x,y)])
+            #^ if
+        #^ for 
+        itoc = time.process_time()
+
+        if output == 2: print("TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|XY):", itoc - itic,"secs")
         return mysum
     #^ if sources
     elif which_sources == [1,3]:
         # H( S | X, Z )
-        marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        marg_SXZ = self.marginal_abc(self.S, self.X, self.Z, self.Y, which_sources, sol_rpq)
-        for s in self.S:
-            for x in self.X:
-                for z in self.Z:
-                    if (s,x,z) in idx_of_trip.keys() and marg_SXZ[(s,x,z)] > 0 and  marg_XZ[(x,z)] > 0:
-                        # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
-                        mysum -= marg_SXZ[(s,x,z)]*log(marg_SXZ[(s,x,z)]/marg_XZ[(x,z)])
+        itic = time.process_time()
+
+        for sxz in idx_of_trip.keys():
+            s,x,z = sxz
+            if marg_XZ[(x,z)] > 0 and  marg_SXZ[(s,x,z)] > 0:
+                # subtract q_{sxz}*log( q_{sxz}/q_{xz} )
+                mysum -= marg_SXZ[(s,x,z)]*log(marg_SXZ[(s,x,z)]/marg_XZ[(x,z)])
+            #^ if
+        #^ for 
+        itoc = time.process_time()
+
+        if output == 2: print("TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|XZ):", itoc - itic,"secs")
         return mysum
     #^ if sources
     elif which_sources == [2,3]:
         # H( S | Y, Z )
-        marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        marg_SYZ = self.marginal_abc(self.S, self.Y, self.Z, self.X, which_sources, sol_rpq)
-        for s in self.S:
-            for y in self.Y:
-                for z in self.Z:
-                    if (s,y,z) in idx_of_trip.keys() and marg_SYZ[(s,y,z)] > 0 and  marg_YZ[(y,z)] > 0:
-                        # subtract q_{sxy}*log( q_{sxy}/q_{xy} )
-                        mysum -= marg_SYZ[(s,y,z)]*log(marg_SYZ[(s,y,z)]/marg_YZ[(y,z)])
-        return mysum
+        itic = time.process_time()
 
+        for syz in idx_of_trip.keys():
+            s,y,z = syz
+            if marg_YZ[(y,z)] > 0 and  marg_SYZ[(s,y,z)] > 0:
+                # subtract q_{syz}*log( q_{syz}/q_{yz} )
+                mysum -= marg_SYZ[(s,y,z)]*log(marg_SYZ[(s,y,z)]/marg_YZ[(y,z)])
+            #^ if
+        #^ for 
+        itoc = time.process_time()
+        
+        if output == 2: print("TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|YZ):", itoc - itic,"secs")
+        return mysum
     #^ if sources
+    else:
+        print("TRIVARIATE_UNQ.condentropy_2vars(): which_sources takes the values [1,2], [1,3], [2,3]")
+        exit(1)
+    #^ if sources
+
 #^ condentropy_2vars()
 
-def marginal_a(self,_A, _B, _C, _D, which_sources, sol_rpq):
-    # provide the positive marginals all a in a system  (a,b,c,d)
-    marg_1 = dict()
-    marg_2 = dict()
-    marg_3 = dict()
-    marg_4 = dict()
-    idx_of_trip,trip_of_idx = self.initialization(which_sources)
-    ltrip_of_idx = len(trip_of_idx)
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if a in marg_1.keys():
-            marg_1[a] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_1[a] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if b in marg_2.keys():
-            marg_2[b] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_2[b] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if c in marg_3.keys():
-            marg_3[c] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_3[c] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for
-    for abcd in self.idx_of_quad.keys():
-        a,b,c,d = abcd
-        if d in marg_4.keys():
-            marg_4[d] += max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        else:
-            marg_4[d] = max(0, sol_rpq[self.sq_vidx(self.idx_of_quad[ (a,b,c,d) ], ltrip_of_idx)])
-        #^ if
-    #^ for
-    return marg_1, marg_2, marg_3, marg_4
-#^ marginal_ab()
 
 
-def condentropy_1var(self,which_sources,sol_rpq):
+def condentropy_1var(self,which_sources,sol_rpq, marg_SX, marg_SY, marg_SZ, marg_X, marg_Y, marg_Z):
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
+
     mysum = 0.
-    
     if which_sources == [1,2]:
         # H( S | Z )
-        marg_S,marg_X,marg_Y,marg_Z = self.marginal_a(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
+        itic = time.process_time()
         for s in self.S:
             for z in self.Z:
                 if (s,z) in self.b_sz.keys() and marg_SZ[(s,z)] > 0 and marg_Z[z] > 0:
@@ -800,12 +875,13 @@ def condentropy_1var(self,which_sources,sol_rpq):
                 #^ if sz exists
             #^ for z 
         #^ for z
+        itoc = time.process_time()
+        print("Time to compute H(S|Z):", itoc - itic,"secs")
         return mysum
     #^ if sources
     elif which_sources == [1,3]:
         # H( S | Y )
-        marg_S,marg_X,marg_Y,marg_Z = self.marginal_a(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
+        itic = time.process_time()
         for s in self.S:
             for y in self.Y:
                 if (s,y) in self.b_sy.keys()and marg_SY[(s,y)] > 0 and marg_Y[y] > 0:
@@ -814,13 +890,14 @@ def condentropy_1var(self,which_sources,sol_rpq):
                 #^ if sy exists
             #^ for y 
         #^ for s
+        itoc = time.process_time()
+        print("Time to compute H(S|Y):", itoc - itic,"secs")
         return mysum
     #^ if sources
     
     elif which_sources == [2,3]:
-        # H ( S | X )        
-        marg_S,marg_X,marg_Y,marg_Z = self.marginal_a(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
-        marg_SX, marg_SY, marg_SZ, marg_XY, marg_XZ, marg_YZ = self.marginal_ab(self.S, self.X, self.Y, self.Z, which_sources, sol_rpq)
+        # H ( S | X )
+        itic = time.process_time()
         for s in self.S:
             for x in self.X:
                 if (s,x) in self.b_sx.keys() and marg_SX[(s,x)] > 0 and marg_X[x] > 0:
@@ -829,27 +906,54 @@ def condentropy_1var(self,which_sources,sol_rpq):
                 #^ if sx exists
             #^ for y 
         #^ for s
+        itoc = time.process_time()
+        print("Time to compute H(S|X):", itoc - itic,"secs")
         return mysum
     #^ if sources
+    else:
+        print(" which sources takes the values: [1,2], [1,3], [2,3]")
+        exit(1)
+    #^ if sources
+    
 #^ condentropy_1var()
 
-def entropy_S(self,pdf):
-    mysum = 0.
-    for s in self.S:
-        psum = 0.
-        for x in self.X:
-            if not (s,x) in self.b_sx: continue
-            for y in self.Y:
-                if not (s,y) in self.b_sy:  continue
-                for z in self.Z:
-                    if (s,x,y,z) in pdf.keys():
-                        psum += pdf[(s,x,y,z)]
-                    #^ if
-                #^ for z
-            #^ for y
-        #^ for x
-        mysum -= psum * log(psum)
-    #^ for x
-    return mysum
-#^ entropy_S()
+# def entropy_S(self,pdf, sol_rpq, which_sources, output):
+#     # (c) Abdullah Makkeh, Dirk Oliver Theis
+#     # Permission to use and modify under Apache License version 2.0
+#     mysum = 0.
+#     marg_s = defaultdict(lambda: 0.)
+#     idx_of_trip,trip_of_idx = self.initialization(which_sources)
+#     ltrip_of_idx = len(trip_of_idx)
+#     for sxyz, i in self.idx_of_quad.items():
+#         s,x,y,z = sxyz
+#         marg_s[s] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
+#     #^ for
+#     for s in self.S:
+#         if marg_s[s] > 0: mysum -= marg_s[s]*log(marg_s[s])
 
+#     print("H(S) new:", mysum)
+#     itic = time.process_time()
+#     mysum = 0.
+#     for s in self.S:
+#         psum = 0.
+#         for x in self.X:
+#             if not (s,x) in self.b_sx: continue
+#             for y in self.Y:
+#                 if not (s,y) in self.b_sy:  continue
+#                 for z in self.Z:
+#                     if (s,x,y,z) in pdf.keys():
+#                         psum += pdf[(s,x,y,z)]
+#                     #^ if
+#                 #^ for z
+#             #^ for y
+#         #^ for x
+#         mysum -= psum * log(psum)
+#     #^ for x
+#     print("H(S) old:", mysum)
+#     itoc = time.process_time()
+#     if output == 2: print("Time to compute H(S):", itoc - itic,"secs")
+#     return mysum
+
+# #^ entropy_S()
+
+#EOF
