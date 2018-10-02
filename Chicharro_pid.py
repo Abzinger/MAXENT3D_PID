@@ -20,6 +20,7 @@
 ##############################################################################################################
 import TRIVARIATE_SYN
 import TRIVARIATE_UNQ
+import TRIVARIATE_QP
 
 import multiprocessing as mp
 from multiprocessing import Pool
@@ -253,6 +254,44 @@ class Opt_II(Solve_w_ECOS):
     def entropy_S(self, pdf, sol_rpq, which_sources, output):
         return TRIVARIATE_UNQ.entropy_S(self, pdf, sol_rpq, which_sources, output)
 #^ subclass Opt_II
+
+class QP():
+    # (c) Abdullah Makkeh, Dirk Oliver Theis
+    # Permission to use and modify under Apache License version 2.0
+    def __init__(self, CI, SI, UIX, UIY, UIZ, UIXY, UIXZ, UIYZ, MI, MIX, MIY, MIZ):
+        # (c) Abdullah Makkeh, Dirk Oliver Theis
+        # Permission to use and modify under Apache License version 2.0
+
+        # ECOS parameters
+        self.ecos_kwargs   = dict()
+        self.verbose       = False
+
+        # Probability density funciton data
+        self.CI_e, self.CI_c     = CI
+        self.SI_e, self.SI_c     = SI
+
+        self.UIX_e, self.UIX_c   = UIX
+        self.UIY_e, self.UIY_c   = UIY
+        self.UIZ_e, self.UIZ_c   = UIZ
+
+        self.UIXY_e, self.UIXY_c = UIXY
+        self.UIXZ_e, self.UIXZ_c = UIXZ
+        self.UIYZ_e, self.UIYZ_c = UIYZ
+
+        self.MI  = MI
+        self.MIX = MIX
+        self.MIY = MIY
+        self.MIZ = MIZ
+        self.dims = dict()
+    #^ init()
+
+    def create_model(self, which_sources):
+        return TRIVARIATE_QP.create_model(self, which_sources)
+    
+    def solve(self, c, G, h, dims, A, b, output):
+        return TRIVARIATE_QP.solve(self, c, G, h, dims, A, b, output)
+
+#^ class QP
 
 # Compute Marginals
 
@@ -815,9 +854,449 @@ def pid(pdf_dirty, cone_solver="ECOS", output=0, parallel="off", **solver_args):
     toc_dict = time.time()
     if output > 0: print("\nchicharro_pid.pid(): Time for storing results:", toc_dict - tic_dict, "secs\n")
 
+    # Recovering Solutions if duality is violated
+    which_probs = []
+    gap = 0.
+    gap_I = 0.
+    gap_12 = 0.
+    gap_13 = 0.
+    gap_23 = 0.
+
+    # Determine which problems didn't converge
+    if return_data["Num_err_I"][2] >= 1.e-4:
+        print("Numerical problems [min - H(S|XYZ)]")
+        which_probs.append(1)
+        gap_I = return_data["Num_err_I"][2]
+    if return_data["Num_err_12"][2] >= 1.e-4:
+        print("Numerical problems [min - H(S|XY)]")
+        which_probs.append(12)
+        gap_12 = return_data["Num_err_12"][2]
+    if return_data["Num_err_13"][2] >= 1.e-4:
+        print("Numerical problems [min - H(S|XZ)]")
+        which_probs.append(13)
+        gap_13 = return_data["Num_err_13"][2]
+    if return_data["Num_err_23"][2] >= 1.e-4:
+        print("Numerical problems [min - H(S|YZ)]")
+        which_probs.append(23)
+        gap_23 = return_data["Num_err_23"][2]
+    #^ if doesn't converge
+    # Launch the approperiate QP to recover
+    if which_probs == [1]:
+        print("Recovering solution by Quadratic Programming")
+        CI   = ( return_data["CI"],   1.-gap_I )
+        SI   = ( return_data["SI"],   1.-gap_I )
+        UIX  = ( return_data["UIX"],  1.-gap_I )
+        UIY  = ( return_data["UIY"],  1.-gap_I )
+        UIZ  = ( return_data["UIZ"],  1.-gap_I )
+        UIXY = ( return_data["UIXY"], 1.-gap_I )
+        UIXZ = ( return_data["UIXZ"], 1.-gap_I )
+        UIYZ = ( return_data["UIYZ"], 1.-gap_I )
+
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]
+
+    elif which_probs == [1,12]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_I + gap_12
+        CI   = ( return_data["CI"],   1.-gap_I )
+        SI   = ( return_data["SI"],   1.-gap   )
+        UIX  = ( return_data["UIX"],  1.-gap_I )
+        UIY  = ( return_data["UIY"],  1.-gap_I )
+        UIZ  = ( return_data["UIZ"],  1.-gap   )
+        UIXY = ( return_data["UIXY"], 1.-gap_I )
+        UIXZ = ( return_data["UIXZ"], 1.-gap   )
+        UIYZ = ( return_data["UIYZ"], 1.-gap   )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]        
+
+    elif which_probs == [1,13]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_I + gap_13
+        CI   = ( return_data["CI"],   1.-gap_I )
+        SI   = ( return_data["SI"],   1.-gap   )
+        UIX  = ( return_data["UIX"],  1.-gap_I )
+        UIY  = ( return_data["UIY"],  1.-gap   )
+        UIZ  = ( return_data["UIZ"],  1.-gap_I )
+        UIXY = ( return_data["UIXY"], 1.-gap   )
+        UIXZ = ( return_data["UIXZ"], 1.-gap_I )
+        UIYZ = ( return_data["UIYZ"], 1.-gap   )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]
+
+    elif which_probs == [1,23]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_I + gap_23
+        CI   = ( return_data["CI"],   1.-gap_I )
+        SI   = ( return_data["SI"],   1.-gap   )
+        UIX  = ( return_data["UIX"],  1.-gap   )
+        UIY  = ( return_data["UIY"],  1.-gap_I )
+        UIZ  = ( return_data["UIZ"],  1.-gap_I )
+        UIXY = ( return_data["UIXY"], 1.-gap   )
+        UIXZ = ( return_data["UIXZ"], 1.-gap   )
+        UIYZ = ( return_data["UIYZ"], 1.-gap_I )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]
+
+    elif which_probs == [1,12,13]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_I + gap_12 + gap_13
+        CI   = ( return_data["CI"],   1.-gap_I            )
+        SI   = ( return_data["SI"],   1.-gap              )
+        UIX  = ( return_data["UIX"],  1.-gap_I            )
+        UIY  = ( return_data["UIY"],  1.-(gap_I + gap_13) )
+        UIZ  = ( return_data["UIZ"],  1.-(gap_I + gap_12) ) 
+        UIXY = ( return_data["UIXY"], 1.-(gap_I + gap_13) )
+        UIXZ = ( return_data["UIXZ"], 1.-(gap_I + gap_12) )
+        UIYZ = ( return_data["UIYZ"], 1.-gap              )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]
+
+    elif which_probs == [1,12,23]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_I + gap_12 + gap_23
+        CI   = ( return_data["CI"],   1.-gap_I            )
+        SI   = ( return_data["SI"],   1.-gap              )
+        UIX  = ( return_data["UIX"],  1.-(gap_I + gap_23) )
+        UIY  = ( return_data["UIY"],  1.-gap_I            )
+        UIZ  = ( return_data["UIZ"],  1.-(gap_I + gap_12) )
+        UIXY = ( return_data["UIXY"], 1.-(gap_I + gap_23) )
+        UIXZ = ( return_data["UIXZ"], 1.-gap              )
+        UIYZ = ( return_data["UIYZ"], 1.-(gap_I + gap_12) )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]
+
+    elif which_probs == [1,13,23]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_I + gap_13 + gap_23
+        CI   = ( return_data["CI"],   1.-gap_I            )
+        SI   = ( return_data["SI"],   1.-gap              )
+        UIX  = ( return_data["UIX"],  1.-(gap_I + gap_23) )
+        UIY  = ( return_data["UIY"],  1.-(gap_I + gap_13) )
+        UIZ  = ( return_data["UIZ"],  1.-gap_I            )
+        UIXY = ( return_data["UIXY"], 1.-gap              )
+        UIXZ = ( return_data["UIXZ"], 1.-(gap_I + gap_23) )
+        UIYZ = ( return_data["UIYZ"], 1.-(gap_I + gap_13) )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["CI"]   = sol_tx[1]
+        return_data["SI"]   = sol_tx[2]
+        return_data["UIX"]  = sol_tx[3]
+        return_data["UIY"]  = sol_tx[4]
+        return_data["UIZ"]  = sol_tx[5]
+        return_data["UIXY"] = sol_tx[6]
+        return_data["UIXZ"] = sol_tx[7]
+        return_data["UIYZ"] = sol_tx[8]
+
+    elif which_probs == [12,13]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_12 + gap_13
+        CI   = ( return_data["CI"],   0.        )
+        SI   = ( return_data["SI"],   1.-gap    )
+        UIX  = ( return_data["UIX"],  0.        )
+        UIY  = ( return_data["UIY"],  1.-gap_13 )
+        UIZ  = ( return_data["UIZ"],  1.-gap_12 )
+        UIXY = ( return_data["UIXY"], 1.-gap_13 )
+        UIXZ = ( return_data["UIXZ"], 1.-gap_12 )
+        UIYZ = ( return_data["UIYZ"], 1.-gap    )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIY"]  = sol_tx[2]
+        return_data["UIZ"]  = sol_tx[3]
+        return_data["UIXY"] = sol_tx[4]
+        return_data["UIXZ"] = sol_tx[5]
+        return_data["UIYZ"] = sol_tx[6]
+
+    elif which_probs == [12,23]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_12 + gap_23
+        CI   = ( return_data["CI"],   0.        )
+        SI   = ( return_data["SI"],   1.-gap    )
+        UIX  = ( return_data["UIX"],  1.-gap_23 )
+        UIY  = ( return_data["UIY"],  0.        )
+        UIZ  = ( return_data["UIZ"],  1.-gap_12 )
+        UIXY = ( return_data["UIXY"], 1.-gap_23 )
+        UIXZ = ( return_data["UIXZ"], 1.-gap    )
+        UIYZ = ( return_data["UIYZ"], 1.-gap_12 )
+
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIX"]  = sol_tx[2]
+        return_data["UIZ"]  = sol_tx[3]
+        return_data["UIXY"] = sol_tx[4]
+        return_data["UIXZ"] = sol_tx[5]
+        return_data["UIYZ"] = sol_tx[6]
+
+    elif which_probs == [13,23]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_13 + gap_23
+        CI   = ( return_data["CI"],   0.        )
+        SI   = ( return_data["SI"],   1.-gap    )
+        UIX  = ( return_data["UIX"],  1.-gap_23 )
+        UIY  = ( return_data["UIY"],  1.-gap_13 ) 
+        UIZ  = ( return_data["UIZ"],  0.        )
+        UIXY = ( return_data["UIXY"], 1.-gap    )
+        UIXZ = ( return_data["UIXZ"], 1.-gap_23 )
+        UIYZ = ( return_data["UIYZ"], 1.-gap_13 )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIX"]  = sol_tx[2]
+        return_data["UIY"]  = sol_tx[3]
+        return_data["UIXY"] = sol_tx[4]
+        return_data["UIXZ"] = sol_tx[5]
+        return_data["UIYZ"] = sol_tx[6]
+
+    elif which_probs == [12,13,23]:
+        print("Recovering solution by Quadratic Programming")
+        gap  = gap_12 + gap_13 + gap_23
+        CI   = ( return_data["CI"],   0.                   )
+        SI   = ( return_data["SI"],   1.-gap               )
+        UIX  = ( return_data["UIX"],  1.-gap_23            )
+        UIY  = ( return_data["UIY"],  1.-gap_13            )
+        UIZ  = ( return_data["UIZ"],  1.-gap_12            )
+        UIXY = ( return_data["UIXY"], 1.-(gap_13 + gap_23) )
+        UIXZ = ( return_data["UIXZ"], 1.-(gap_12 + gap_23) )
+        UIYZ = ( return_data["UIYZ"], 1.-(gap_12 + gap_13) )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIX"]  = sol_tx[2]
+        return_data["UIY"]  = sol_tx[3]
+        return_data["UIZ"]  = sol_tx[4]
+        return_data["UIXY"] = sol_tx[5]
+        return_data["UIXZ"] = sol_tx[6]
+        return_data["UIYZ"] = sol_tx[7]
+
+    elif which_probs == [12]:
+        print("Recovering solution by Quadratic Programming")
+        CI   = ( return_data["CI"],   0.        )
+        SI   = ( return_data["SI"],   1.-gap_12 )
+        UIX  = ( return_data["UIX"],  0.        )
+        UIY  = ( return_data["UIY"],  0.        )
+        UIZ  = ( return_data["UIZ"],  1.-gap_12 )
+        UIXY = ( return_data["UIXY"], 0.        )
+        UIXZ = ( return_data["UIXZ"], 1.-gap_12 )
+        UIYZ = ( return_data["UIYZ"], 1.-gap_12 )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIZ"]  = sol_tx[2]
+        return_data["UIXZ"] = sol_tx[3]
+        return_data["UIYZ"] = sol_tx[4]
+
+    elif which_probs == [13]:
+        print("Recovering solution by Quadratic Programming")
+        CI   = ( return_data["CI"],   0.        )
+        SI   = ( return_data["SI"],   1.-gap_13 )
+        UIX  = ( return_data["UIX"],  0.        )
+        UIY  = ( return_data["UIY"],  1.-gap_13 )
+        UIZ  = ( return_data["UIZ"],  0.        )
+        UIXY = ( return_data["UIXY"], 1.-gap_13 )
+        UIXZ = ( return_data["UIXZ"], 0.        )
+        UIYZ = ( return_data["UIYZ"], 1.-gap_13 )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIY"]  = sol_tx[2]
+        return_data["UIXY"] = sol_tx[3]
+        return_data["UIYZ"] = sol_tx[4]
+
+    elif which_probs == [23]:
+        print("Recovering solution by Quadratic Programming")
+        CI   = ( return_data["CI"],   0.        )
+        SI   = ( return_data["SI"],   1.-gap_23 )
+        UIX  = ( return_data["UIX"],  1.-gap_23 )
+        UIY  = ( return_data["UIY"],  0.        )
+        UIZ  = ( return_data["UIZ"],  0.        )
+        UIXY = ( return_data["UIXY"], 1.-gap_23 )
+        UIXZ = ( return_data["UIXZ"], 1.-gap_23 )
+        UIYZ = ( return_data["UIYZ"], 0.        )
+        
+        MI  = entropy_S  - condent__orig
+        MIX = I_V(1,pdf)
+        MIY = I_V(2,pdf)
+        MIZ = I_V(3,pdf)
+        
+        recover_solver = QP(CI,SI,UIX,UIY,UIZ,UIXY,UIXZ,UIYZ,MI,MIX,MIY,MIZ)
+        if output > 2: recover_solver.verbose = True
+        c, G, h, dims, A, b = recover_solver.create_model(which_probs)
+        recover_solver.ecos_kwargs = solver_args
+        retval, sol_tx, sol_slack, sol_lambda, sol_mu, sol_info = recover_solver.solve(c, G, h, dims, A, b, output)
+        return_data["SI"]   = sol_tx[1]
+        return_data["UIX"]  = sol_tx[2]
+        return_data["UIXY"] = sol_tx[3]
+        return_data["UIXZ"] = sol_tx[4]
+    #^ if which problem
+
     # Sanity check
 
-    # Check: MI(S; X,Y,Z) = SI + CI + UIX + UIY + UIZ + UIXY + UIXZ + UIYZ
+    #Check: MI(S; X,Y,Z) = SI + CI + UIX + UIY + UIZ + UIXY + UIXZ + UIYZ
     assert abs(entropy_S - condent__orig
                - return_data['CI'] - return_data['SI']
                - return_data['UIX'] - return_data['UIY'] - return_data['UIZ']
