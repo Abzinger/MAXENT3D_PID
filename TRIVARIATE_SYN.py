@@ -1,3 +1,4 @@
+"""
 # TRIVARIATE_SYN.py -- Python Class
 #
 # Creates the optimization problem needed to compute synergy (also needed for uniqueness)
@@ -10,7 +11,7 @@
 # Permission to use and modify under Apache License version 2.0
 #
 ##########################################################################################
-
+"""
 import ecos
 from scipy import sparse
 import numpy as np
@@ -31,11 +32,36 @@ ln  = math.log
 log = math.log2
 
 def create_model(self, output = 0):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Creates the exponential Cone Program min_{q in Delta_d}H(T|X,Y,Z)
+           of the form 
+              min. c'x
+              s.t.
+                  Ax = b
+                  Gx <=_K h
+             where x = (r,p,q)
+                   K represents a vector representing cones (K_1, K_2)
+                   such that K_1 is a vector repesenting exponential cones 
+                             K_2 is a vector repesenting nonnegative cones 
+        
+        Args:
+             output:
+        Returns: 
+            c: numpy.array - objective function weights
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
+                                      inequalities
+            h: numpy.array - L.H.S. of inequalities 
+            dims: dictionary -  cones to be used 
+                keys: string - cone type (exponential or nonegative)
+                values: int - number of cones
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
+                                      q-p coupling equations 
+            b: numpy.array - L.H.S. of equalities 
+        
+    """
+    
     tic_all = time.process_time()
     n = len(self.quad_of_idx)
-    m = len(self.b_sx) + len(self.b_sy) + len(self.b_sz)
+    m = len(self.b_tx) + len(self.b_ty) + len(self.b_tz)
     n_vars = 3*n
     n_cons = n+m
     
@@ -97,7 +123,7 @@ def create_model(self, output = 0):
     Eqn_marg_acc = defaultdict(list)
     Var_marg = defaultdict(list)
     Coeff_marg = defaultdict(list)
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         (s,x) = sx
         eqn += 1
         Eqn_marg[s,x] = eqn
@@ -105,7 +131,7 @@ def create_model(self, output = 0):
         
     for i,sxyz in enumerate(self.quad_of_idx):
         s,x,y,z = sxyz
-        if (s,x) in self.b_sx.keys():
+        if (s,x) in self.b_tx.keys():
             q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
             Var_marg[s,x].append(q_var)
             Coeff_marg[s,x].append(+1.)
@@ -113,17 +139,17 @@ def create_model(self, output = 0):
         #^ if sx exits
     # for sxyz
     
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         (s,x) = sx
         temp = [ Eqn_marg[s,x] ]*Eqn_marg_num[s,x]
         Eqn_marg_acc[s,x] += temp
     #^ for  sx exists    
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         (s,x) = sx
         Eqn += Eqn_marg_acc[s,x]
         Var += Var_marg[s,x]
         Coeff += Coeff_marg[s,x]
-        self.b[ Eqn_marg[s,x] ] = self.b_sx[(s,x)]
+        self.b[ Eqn_marg[s,x] ] = self.b_tx[(s,x)]
     #^ for sx exists
     
     # The sy marginals q_{s*y*} = b^y_{sy}
@@ -132,7 +158,7 @@ def create_model(self, output = 0):
     Eqn_marg_acc = defaultdict(list)
     Var_marg = defaultdict(list)
     Coeff_marg = defaultdict(list)
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         (s,y) = sy
         eqn += 1
         Eqn_marg[s,y] = eqn
@@ -140,7 +166,7 @@ def create_model(self, output = 0):
         
     for i,sxyz in enumerate(self.quad_of_idx):
         s,x,y,z = sxyz
-        if (s,y) in self.b_sy.keys():
+        if (s,y) in self.b_ty.keys():
             q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
             Var_marg[s,y].append(q_var)
             Coeff_marg[s,y].append(+1.)
@@ -148,18 +174,18 @@ def create_model(self, output = 0):
         #^ if sy exits
     # for sxyz
     
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         (s,y) = sy
         temp = [ Eqn_marg[s,y] ]*Eqn_marg_num[s,y]
         Eqn_marg_acc[s,y] += temp
     #^ for  sy exists   
         
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         (s,y) = sy
         Eqn += Eqn_marg_acc[s,y]
         Var += Var_marg[s,y]
         Coeff += Coeff_marg[s,y]
-        self.b[ Eqn_marg[s,y] ] = self.b_sy[(s,y)]
+        self.b[ Eqn_marg[s,y] ] = self.b_ty[(s,y)]
     #^ for sy exists
 
     # The sz marginals q_{s**z} = b^z_{sz}
@@ -169,7 +195,7 @@ def create_model(self, output = 0):
     Var_marg = defaultdict(list)
     Coeff_marg = defaultdict(list)
 
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         (s,z) = sz
         eqn += 1
         Eqn_marg[s,z] = eqn
@@ -177,7 +203,7 @@ def create_model(self, output = 0):
     
     for i,sxyz in enumerate(self.quad_of_idx):
         s,x,y,z = sxyz
-        if (s,z) in self.b_sz.keys():
+        if (s,z) in self.b_tz.keys():
             q_var = q_vidx(self.idx_of_quad[ (s,x,y,z) ])
             Var_marg[s,z].append(q_var)
             Coeff_marg[s,z].append(+1.)
@@ -185,18 +211,18 @@ def create_model(self, output = 0):
         #^ if sz exits
     # for sxyz
     
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         (s,z) = sz
         temp = [ Eqn_marg[s,z] ]*Eqn_marg_num[s,z]
         Eqn_marg_acc[s,z] += temp
     #^ for  sz exists    
         
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         (s,z) = sz
         Eqn += Eqn_marg_acc[s,z]
         Var += Var_marg[s,z]
         Coeff += Coeff_marg[s,z]
-        self.b[ Eqn_marg[s,z] ] = self.b_sz[(s,z)]
+        self.b[ Eqn_marg[s,z] ] = self.b_tz[(s,z)]
     #^ for sz exists
 
     itoc_m = time.process_time()
@@ -245,8 +271,30 @@ def create_model(self, output = 0):
 
 
 def solve(self, c, G, h, dims, A, b, output):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """ Solves the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
+        
+        Args:
+            c: numpy.array - objective function weights
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
+                                         inequalities
+            h: numpy.array - L.H.S. of inequalities 
+            dims: dictionary -  cones to be used 
+                    keys: string - cone type (exponential or nonegative)
+                    values: int - number of cones
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
+                                         q-p coupling equations 
+            b: numpy.array - L.H.S. of equalities 
+            output: int - print different outputs based on (int) to console
+ 
+       Returns: 
+            sol_rpq:    numpy.array - primal optimal solution
+            sol_slack:  numpy.array - slack of primal optimal solution 
+                                      (G*sol_rpq - h)
+            sol_lambda: numpy.array - equalities dual optimal solution
+            sol_mu:     numpy.array - inequalities dual  optimal solution   
+            sol_info:   dictionary - Brief stats of the optimization from ECOS
+
+    """
 
     itic = time.process_time()
     self.marg_xyz = None # for cond[]mutinf computation below
@@ -272,8 +320,17 @@ def solve(self, c, G, h, dims, A, b, output):
 
 
 def condentropy(self, sol_rpq, output = 0):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """ evalutes the value of H(T|X,Y,Z) at the optimal distribution
+        
+        Args:
+             sol_rpq:    numpy.array - primal optimal solution
+             output: int - print different outputs based on (int) to console
+        
+        Returns: 
+            mysum: float - H(T|X,Y,Z)
+
+    """
+    
     # compute cond entropy of the distribution in self.sol_rpq
     
     itic = time.process_time()
@@ -292,6 +349,7 @@ def condentropy(self, sol_rpq, output = 0):
         #^ if
     #^ for
     itoc = time.process_time()
+    # print("H(T|XYZ)", mysum)
 
     if output == 2: print("TRIVARIATE_SYN.condentropy(): Time to compute condent H(S|XYZ):", itoc - itic, "secs")
 
@@ -299,8 +357,23 @@ def condentropy(self, sol_rpq, output = 0):
 #^ condentropy()
 
 def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """ Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
+        
+        Args:
+             sol_rpq:    numpy.array - primal optimal solution
+             sol_slack:  numpy.array - slack of primal optimal solution 
+                                      (G*sol_rpq - h)
+             sol_lambda: numpy.array - equalities dual optimal solution
+             output: int - print different outputs based on (int) to console
+
+        Returns: 
+             primal_infeasability: float - maximum violation of the optimal primal solution
+                                           for primal equalities and inequalities
+             dual_infeasability:   float - maximum violation of the optimal dual solution
+                                           for dual equalities and inequalities
+        
+    """
+    
     # returns pair (p,d) of primal/dual infeasibility (maxima)
 
     # Primal infeasiblility
@@ -325,7 +398,7 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
         s,x,y,z = sxyz
         sol_b_sx[s,x] += max(0., sol_rpq[q_vidx(i)])
     #^ for sxyz exists 
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         s,x  = sx
         mysum = i - sol_b_sx[s,x]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
@@ -337,7 +410,7 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
         s,x,y,z = sxyz
         sol_b_sy[s,y] += max(0., sol_rpq[q_vidx(i)])
     #^ for sxyz exists 
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         s,y  = sy
         mysum = i - sol_b_sy[s,y]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
@@ -348,7 +421,7 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
         s,x,y,z = sxyz
         sol_b_sz[s,z] += max(0., sol_rpq[q_vidx(i)])
     #^ for sxyz exists 
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         s,z  = sz
         mysum = i - sol_b_sz[s,z]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
@@ -364,9 +437,9 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
     # Finding dual indices 
     idx_of_sx = dict()
     i = 0
-    for s in self.S:
+    for s in self.T:
         for x in self.X:
-            if (s,x) in self.b_sx.keys():
+            if (s,x) in self.b_tx.keys():
                 idx_of_sx[(s,x)] = i
                 i += 1
             #^ if sx exists
@@ -375,9 +448,9 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
 
     idx_of_sy = dict()
     i = 0
-    for s in self.S:
+    for s in self.T:
         for y in self.Y:
-            if (s,y) in self.b_sy.keys():
+            if (s,y) in self.b_ty.keys():
                 idx_of_sy[(s,y)] = i
                 i += 1
             #^ if sy exists
@@ -386,9 +459,9 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
 
     idx_of_sz = dict()
     i = 0
-    for s in self.S:
+    for s in self.T:
         for z in self.Z:
-            if (s,z) in self.b_sz.keys():
+            if (s,z) in self.b_tz.keys():
                 idx_of_sz[(s,z)] = i
                 i += 1
             #^ if sz exists
@@ -412,8 +485,8 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
 
         # Get indices of dual variables of the marginal constriants
         sx_idx = len(self.quad_of_idx) + idx_of_sx[(s,x)]
-        sy_idx = len(self.quad_of_idx) + len(self.b_sx) + idx_of_sy[(s,y)]
-        sz_idx = len(self.quad_of_idx) + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+        sy_idx = len(self.quad_of_idx) + len(self.b_tx) + idx_of_sy[(s,y)]
+        sz_idx = len(self.quad_of_idx) + len(self.b_tx) + len(self.b_ty) + idx_of_sz[(s,z)]
         
         # Find the most violated dual ieq
         dual_infeasability = max( dual_infeasability, - sol_lambda[sx_idx]
@@ -431,6 +504,17 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
 
 
 def dual_value(self, sol_lambda, b):
+    """ evaluates the dual value of H(T|X,Y,Z)
+        
+        Args:
+             sol_lambda: numpy.array - equalities dual optimal solution
+             b: numpy.array - L.H.S. of equalities 
+        
+        Returns: 
+            float 
+
+    """
+
     return -np.dot(sol_lambda, b)
 #^ dual_value()
 

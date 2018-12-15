@@ -1,3 +1,4 @@
+"""
 # TRIVARIATE_QP.py -- Python Class
 #
 # Creates a Quadratic Program when one or more of the following
@@ -6,13 +7,13 @@
 #
 # min - H(S|XYZ), min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)
 #
-# bails w/ duality gap > 10^-8  
+# bails w/ duality gap > 10^-6  
 #
 # (c) Abdullah Makkeh, Dirk Oliver Theis
 # Permission to use and modify under Apache License version 2.0
 #
 #########################################################################
-
+"""
 import ecos
 from scipy import sparse
 import numpy as np
@@ -25,30 +26,67 @@ ln  = math.log
 log = math.log2
 
 def create_model(self, which_probs):
+    """Creates the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x
+           of the form 
+                      min 1/2 x^TWx + f^T x
+                      subject to
+                            Ax  = b
+                            x >= 0
+           The model can be written as SOCP:
+           min 1/2 t + f^T x
+           subject to
+                 Ax = b
+                (W^(1/2), t, 1)\in SOC
+                 x >= 0
+           In ECOS 
+               min c^T[t,x]
+               subject to
+                     Ax = b
+                     [-I, W^(1/2)]*[t,x]^T <_{K} [0, 0, 0]
+           where K := R_+ . Q, c^T := [1/2,f^T]
 
-    # The model to be solve is
-    # min 1/2 x^TWx + f^T x
-    # subject to
-    #           Ax  = b
-    #            x >= 0
-    # The model can be written as SOCP:
-    # min 1/2 t + f^T x
-    # subject to
-    #           Ax = b
-    #           (W^(1/2), t, 1)\in SOC
-    #           x >= 0
-    # In ECOS 
-    # min c^T[t,x]
-    # subject to
-    #           Ax = b
-    #           [-I, W^(1/2)]*[t,x]^T <_{K} [0, 0, 0]
-    # where K := R_+ . Q, c^T := [1/2,f^T]
-    
-    
-    # which_problems is a list of the problems that
-    # did not converge: {min - H(S|XYZ)} = 1,
-    # {min -H(S|XY)} = 12,{min -H(S|XZ)} = 13 and
-    # {min -H(S|YZ)} = 23
+        Args:
+             which_probs: list(int) - [1]  if min_{Delta_p}H(T|X,Y,Z) failed
+                                      [12] if min_{Delta_p}H(T|X,Y) failed
+                                      [12] if min_{Delta_p}H(T|X,Z) failed
+                                      [12] if min_{Delta_p}H(T|Y,Z) failed
+                                      [1,12]  if min_{Delta_p}H(T|X,Y,Z) and 
+                                                 min_{Delta_p}H(T|X,Y) failed
+                                      [1,13]  if min_{Delta_p}H(T|X,Y,Z) and 
+                                                 min_{Delta_p}H(T|X,Z) failed
+                                      [1,23]  if min_{Delta_p}H(T|X,Y,Z) and 
+                                                 min_{Delta_p}H(T|Y,Z) failed
+                                      [12,13] if min_{Delta_p}H(T|X,Y) and 
+                                                 min_{Delta_p}H(T|X,Z) failed
+                                      [12,23] if min_{Delta_p}H(T|X,Y) and 
+                                                 min_{Delta_p}H(T|Y,Z) failed
+                                      [13,23] if min_{Delta_p}H(T|X,Z) and 
+                                                 min_{Delta_p}H(T|Y,Z) failed
+                                      [1,12,13]  if min_{Delta_p}H(T|X,Y,Z),
+                                                    min_{Delta_p}H(T|X,Y), and 
+                                                    min_{Delta_p}H(T|X,Z) failed
+                                      [1,12,23]  if min_{Delta_p}H(T|X,Y,Z),
+                                                    min_{Delta_p}H(T|X,Y), and 
+                                                    min_{Delta_p}H(T|Y,Z) failed
+                                      [1,13,23]  if min_{Delta_p}H(T|X,Y,Z),
+                                                    min_{Delta_p}H(T|X,Z), and 
+                                                    min_{Delta_p}H(T|Y,Z) failed
+                                      [12,13,23] if min_{Delta_p}H(T|X,Y),
+                                                    min_{Delta_p}H(T|X,Z), and 
+                                                    min_{Delta_p}H(T|Y,Z) failed
+
+        Returns: 
+            numpy.array - objective function weights
+            scipy.sparse.csc_matrix - matrix of soc and nonnegative 
+                                      inequalities
+            numpy.array - L.H.S. of inequalities 
+            dictionary -  cones to be used 
+                keys: string - cone type (soc or nonegative)
+                values: int - number of cones
+            scipy.sparse.csc_matrix - Matrix of identity equations 
+            numpy.array - L.H.S. of equalities 
+        
+    """
 
     if which_probs == [1] or which_probs == [1,12] or which_probs == [1,13] or which_probs ==[1,23] or which_probs == [1, 12, 13] or which_probs == [1, 12, 23] or which_probs == [1, 13, 23]:
 
@@ -87,34 +125,69 @@ def create_model(self, which_probs):
         # Construct b 
         self.b = np.array([self.MI, self.MIX, self.MIY, self.MIZ])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) , f, x 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem
+        # Construct G
+        # -G = [ [0,1,0,0,0,0,0,0,0], # CI >= 0
+        #        [0,0,1,0,0,0,0,0,0], # SI >= 0
+        #        [0,0,0,1,0,0,0,0,0], # UIX >= 0
+        #        [0,0,0,0,1,0,0,0,0], # UIY >= 0
+        #        [0,0,0,0,0,1,0,0,0], # UIZ >= 0
+        #        [0,0,0,0,0,0,1,0,0], # UIXY >= 0
+        #        [0,0,0,0,0,0,0,1,0], # UIXZ >= 0
+        #        [0,0,0,0,0,0,0,0,1], # UIYZ >= 0
+        #        [0,1,0,0,0,0,0,0,0], # CI >= CI_e
+        #        [0,1,0,0,0,0,0,0,0], # SI <= SI_e
+        #        [0,0,1,0,0,0,0,0,0], # UIX <= UIX_e 
+        #        [0,0,0,1,0,0,0,0,0], # UIY <= UIY_e
+        #        [0,0,0,0,1,0,0,0,0], # UIZ <= UIZ_e
+        #        [0,0,0,0,0,1,0,0,0], # UIXY >= UIXY_e
+        #        [0,0,0,0,0,0,1,0,0], # UIXZ >= UIXZ_e
+        #        [0,0,0,0,0,0,0,1,0], # UIYZ >= UIYZ_e
+        #        [1,0,0,0,0,0,0,0,0],
+        #        [0,*,0,0,0,0,0,0,0],
+        #        [0,0,*,0,0,0,0,0,0],
+        #        [0,0,0,*,0,0,0,0,0],
+        #        [0,0,0,0,*,0,0,0,0],
+        #        [0,0,0,0,0,*,0,0,0],
+        #        [0,0,0,0,0,0,*,0,0],
+        #        [0,0,0,0,0,0,0,*,0],
+        #        [0,0,0,0,0,0,0,0,*] ]
         
         Ieq   = [0,1,2,3,4,5,6,7,
-                 8,
-                 9,10,
-                 11,12,13,
-                 14,15,16]
+                 8,9,10,11,12,13,14,15,
+                 16,
+                 17,18,
+                 19,20,21,
+                 22,23,24]
         Var   = [1,2,3,4,5,6,7,8,
+                 1,2,3,4,5,6,7,8,
                  0,
                  1,2,
                  3,4,5,
                  6,7,8]
         Coeff = [-1., -1., -1., -1., -1., -1., -1., -1.,
+                 -1., +1., +1., +1., +1., -1., -1., -1.,
                  -1.,
                  -self.CI_c, -self.SI_c,
                  -self.UIX_c, -self.UIY_c, -self.UIZ_c,
                  -self.UIXY_c, -self.UIXZ_c, -self.UIYZ_c] # confidence values 1/dual_gap
-        self.G = sparse.csc_matrix( (Coeff, (Ieq,Var)), shape=(17,9), dtype=np.double)
+        self.G = sparse.csc_matrix( (Coeff, (Ieq,Var)), shape=(25,9), dtype=np.double)
 
         # Construct K 
-        self.dims['l'] = 8
+        self.dims['l'] = 16
         self.dims['q'] = [9]
 
         # Construct h
-        self.h = np.zeros( (17,),dtype=np.double )
+        self.h = np.zeros( (25,),dtype=np.double )
+        self.h[8] = -self.CI_e
+        self.h[9] = self.SI_e
 
+        self.h[10] = self.UIX_e
+        self.h[11] = self.UIY_e
+        self.h[12] = self.UIZ_e
+
+        self.h[13] = -self.UIXY_e
+        self.h[14] = -self.UIXZ_e
+        self.h[15] = -self.UIYZ_e
         return self.c, self.G, self.h, self.dims, self.A, self.b
     #^ if [min - H(S|XYZ)]
  
@@ -155,9 +228,16 @@ def create_model(self, which_probs):
                            self.MIY - self.UIY_e - self.UIXY_e,
                            self.MIZ])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem
+        # Construct G
+        # -G = [ [0,1,0,0,0],
+        #        [0,0,1,0,0],
+        #        [0,0,0,1,0],
+        #        [0,0,0,0,1],
+        #        [1,0,0,0,0],
+        #        [0,*,0,0,0],
+        #        [0,0,*,0,0],
+        #        [0,0,0,*,0],
+        #        [0,0,0,0,*], ]
         
         Ieq   = [0,1,2,3,
                  4,
@@ -224,9 +304,16 @@ def create_model(self, which_probs):
                            self.MIY,
                            self.MIZ - self.UIZ_e - self.UIXZ_e])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem
+        # Construct G
+        # -G = [ [0,1,0,0,0],
+        #        [0,0,1,0,0],
+        #        [0,0,0,1,0],
+        #        [0,0,0,0,1],
+        #        [1,0,0,0,0],
+        #        [0,*,0,0,0],
+        #        [0,0,*,0,0],
+        #        [0,0,0,*,0],
+        #        [0,0,0,0,*], ]
         Ieq   = [0,1,2,3,
                  4,
                  5,
@@ -292,9 +379,16 @@ def create_model(self, which_probs):
                            self.MIY - self.UIY_e - self.UIYZ_e,
                            self.MIZ - self.UIZ_e - self.UIYZ_e])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem        
+        # Construct G
+        # -G = [ [0,1,0,0,0],
+        #        [0,0,1,0,0],
+        #        [0,0,0,1,0],
+        #        [0,0,0,0,1],
+        #        [1,0,0,0,0],
+        #        [0,*,0,0,0],
+        #        [0,0,*,0,0],
+        #        [0,0,0,*,0],
+        #        [0,0,0,0,*], ]
         Ieq   = [0,1,2,3,
                  4,
                  5,
@@ -360,9 +454,20 @@ def create_model(self, which_probs):
                            self.MIY,
                            self.MIZ])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem
+        # Construct G
+        # -G = [ [0,1,0,0,0,0,0],
+        #        [0,0,1,0,0,0,0],
+        #        [0,0,0,1,0,0,0],
+        #        [0,0,0,0,1,0,0],
+        #        [0,0,0,0,0,1,0],
+        #        [0,0,0,0,0,0,1],
+        #        [1,0,0,0,0,0,0],
+        #        [0,*,0,0,0,0,0],
+        #        [0,0,*,0,0,0,0],
+        #        [0,0,0,*,0,0,0],
+        #        [0,0,0,0,*,0,0],
+        #        [0,0,0,0,0,*,0],
+        #        [0,0,0,0,0,0,*], ]
         Ieq   = [0,1,2,3,4,5,
                  6,
                  7,
@@ -428,9 +533,20 @@ def create_model(self, which_probs):
                            self.MIY - self.UIY_e,
                            self.MIZ])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem        
+        # Construct G
+        # -G = [ [0,1,0,0,0,0,0],
+        #        [0,0,1,0,0,0,0],
+        #        [0,0,0,1,0,0,0],
+        #        [0,0,0,0,1,0,0],
+        #        [0,0,0,0,0,1,0],
+        #        [0,0,0,0,0,0,1],
+        #        [1,0,0,0,0,0,0],
+        #        [0,*,0,0,0,0,0],
+        #        [0,0,*,0,0,0,0],
+        #        [0,0,0,*,0,0,0],
+        #        [0,0,0,0,*,0,0],
+        #        [0,0,0,0,0,*,0],
+        #        [0,0,0,0,0,0,*], ]
         Ieq   = [0,1,2,3,4,5,
                  6,
                  7,
@@ -496,9 +612,20 @@ def create_model(self, which_probs):
                            self.MIY,
                            self.MIZ - self.UIZ_e])
 
-        # Construct G = [-E, W^(1/2)]
-        # Construct W^(1\2) 
-        # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem
+        # Construct G
+        # -G = [ [0,1,0,0,0,0,0],
+        #        [0,0,1,0,0,0,0],
+        #        [0,0,0,1,0,0,0],
+        #        [0,0,0,0,1,0,0],
+        #        [0,0,0,0,0,1,0],
+        #        [0,0,0,0,0,0,1],
+        #        [1,0,0,0,0,0,0],
+        #        [0,*,0,0,0,0,0],
+        #        [0,0,*,0,0,0,0],
+        #        [0,0,0,*,0,0,0],
+        #        [0,0,0,0,*,0,0],
+        #        [0,0,0,0,0,*,0],
+        #        [0,0,0,0,0,0,*], ]
         Ieq   = [0,1,2,3,4,5,
                  6,
                  7,
@@ -564,7 +691,23 @@ def create_model(self, which_probs):
                            self.MIY,
                            self.MIZ])
 
-        # Construct G = [-E, W^(1/2)]
+        # Construct G
+        # -G = [ [0,1,0,0,0,0,0,0],
+        #        [0,0,1,0,0,0,0,0],
+        #        [0,0,0,1,0,0,0,0],
+        #        [0,0,0,0,1,0,0,0],
+        #        [0,0,0,0,0,1,0,0],
+        #        [0,0,0,0,0,0,1,0],
+        #        [0,0,0,0,0,0,0,1],
+        #        [1,0,0,0,0,0,0,0],
+        #        [0,*,0,0,0,0,0,0],
+        #        [0,0,*,0,0,0,0,0],
+        #        [0,0,0,*,0,0,0,0],
+        #        [0,0,0,0,*,0,0,0],
+        #        [0,0,0,0,0,*,0,0],
+        #        [0,0,0,0,0,0,*,0],
+        #        [0,0,0,0,0,0,0,*], ]
+
         # Construct W^(1\2) 
         # W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem        
         Ieq   = [0,1,2,3,4,5,6,
@@ -598,8 +741,29 @@ def create_model(self, which_probs):
 #^ create_model()
 
 def solve(self, c, G, h, dims, A, b, output):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Solves the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x
+        
+        Args:
+            c: numpy.array - objective function weights
+            G: scipy.sparse.csc_matrix - matrix of soc and nonnegative 
+                                         inequalities
+            h: numpy.array - L.H.S. of inequalities 
+            dims: dictionary -  cones to be used 
+                    keys: string - cone type (soc or nonegative)
+                    values: int - number of cones
+            A: scipy.sparse.csc_matrix - Matrix of identity equations 
+            b: numpy.array - L.H.S. of equalities 
+            output: int - print different outputs based on (int) to console
+ 
+       Returns: 
+            sol_tx:     numpy.array - primal optimal solution
+            sol_slack:  numpy.array - slack of primal optimal solution 
+                                      (G*sol_rpq - h)
+            sol_lambda: numpy.array - equalities dual optimal solution
+            sol_mu:     numpy.array - inequalities dual  optimal solution   
+            sol_info:   dictionary - Brief stats of the optimization from ECOS
+
+    """
     itic = time.process_time()
     
     if self.verbose != None:

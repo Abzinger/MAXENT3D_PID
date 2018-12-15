@@ -1,3 +1,4 @@
+"""
 # TRIVARIATE_UNQ.py -- Python Class
 #
 # Creates the optimization problems needed to compute unique information
@@ -10,7 +11,7 @@
 # Permission to use and modify under Apache License version 2.0
 #
 #########################################################################
-
+"""
 import ecos
 from scipy import sparse
 import numpy as np
@@ -44,18 +45,29 @@ def core_initialization(_S, X_1, X_2, b_sx1, b_sx2, idx_of, of_idx):
 
 
 def initialization(self, which_sources):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Initialize the data for the triplets (T,U,V) where U,V in {X,Y,Z}
+        
+        Args:
+             which_sources: [1,2] if sources are X and Y 
+                            [1,3] if sources are X and Z
+                            [2,3] if sources are Y and Z
+        Returns: 
+            (if [1,2] u,v=x,y|if [1,3] u,v=x,z|if [2,3] u,v=y,z|)
+            dictionary
+              keys: (t,u,v)
+              values: their indices 
+            list of (t,u,v)
+    """
 
     idx_of_trip  = dict()
     trip_of_idx  = []
 
     if which_sources == [1,2]:
-        core_initialization(self.S, self.X, self.Y, self.b_sx, self.b_sy, idx_of_trip, trip_of_idx)
+        core_initialization(self.T, self.X, self.Y, self.b_tx, self.b_ty, idx_of_trip, trip_of_idx)
     elif which_sources == [1,3]:
-        core_initialization(self.S, self.X, self.Z, self.b_sx, self.b_sz, idx_of_trip, trip_of_idx)
+        core_initialization(self.T, self.X, self.Z, self.b_tx, self.b_tz, idx_of_trip, trip_of_idx)
     elif which_sources == [2,3]:
-        core_initialization(self.S, self.Y, self.Z, self.b_sy, self.b_sz, idx_of_trip, trip_of_idx)
+        core_initialization(self.T, self.Y, self.Z, self.b_ty, self.b_tz, idx_of_trip, trip_of_idx)
     else:
         print("TRIVARIATE_UNQ.initialization(): which_sources takes the values [1,2], [1,3], or [2,3]")
         exit(1)
@@ -67,22 +79,88 @@ def initialization(self, which_sources):
 # Variables here:  (r,p,w)U(q)
 # Translation:     (0,1,2,3)   w/   2>0  &  0/2      ≤ ln(1/2)
 def sr_vidx(i):
+    """Computes the index of the optimal r (r_vars) in the
+           optimal solution of the Exponential Cone Programming
+
+        Args:
+             i: int
+
+        Returns:
+            int
+    """
+
     return 3*i
 def sp_vidx(i):
+    """Computes the index of the optimal (p_vars) in the
+           optimal solution of the Exponential Cone Programming
+    
+        Args:
+             i: int
+
+        Returns:
+            int
+    """
+    
     return 3*i+1
 def sw_vidx(i):
+    """Computes the index of the optimal (w_vars) in the
+           optimal solution of the Exponential Cone Programming
+
+        Args:
+             i: int
+
+        Returns:
+            int
+    """
+    
     return 3*i+2
 def sq_vidx(self, i, ltrip_of_idx):
+    """Computes the index of the optimal distribution (q_vars) in the
+           optimal solution of the Exponential Cone Programming
+
+        Args:
+             i: int
+             ltrip_of_idx: int - length of triplet t,u,v 
+        Returns:
+            int
+    """
+    
     return 3*ltrip_of_idx + i
 
 def create_model(self, which_sources, output):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Creates the exponential Cone Program min_{q in Delta_d}H(T|U,V)
+           of the form 
+              min. c'x
+              s.t.
+                  Ax = b
+                  Gx <=_K h
+             where x = (r,p,q)
+                   K represents a vector representing cones (K_1, K_2)
+                   such that K_1 is a vector repesenting exponential cones 
+                             K_2 is a vector repesenting nonnegative cones 
+        
+        Args:
+             which_sources: [1,2] if sources are X and Y 
+                            [1,3] if sources are X and Z
+                            [2,3] if sources are Y and Z
+        Returns: 
+            numpy.array - objective function weights
+            scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
+                                      inequalities
+            numpy.array - L.H.S. of inequalities 
+            dictionary -  cones to be used 
+                keys: string - cone type (exponential or nonegative)
+                values: int - number of cones
+            scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
+                                      q-p coupling equations 
+            numpy.array - L.H.S. of equalities 
+        
+    """
 
     # Initialize which sources for the model
     tic_all = time.process_time()
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
-    m = len(self.b_sx) + len(self.b_sy) + len(self.b_sz)
+    m = len(self.b_tx) + len(self.b_ty) + len(self.b_tz)
     n = len(trip_of_idx)
     ltrip_of_idx = n
     n_vars = 3*n + len(self.quad_of_idx)
@@ -165,76 +243,76 @@ def create_model(self, which_sources, output):
         for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
             eqn     += 1
-            Eqn_dict[s,t,v] = eqn
+            Eqn_dict[(s,t,v)] = eqn
         #^ for 
             
         for i,utvw in enumerate(self.quad_of_idx):
             u,t,v,w = utvw
             if (t,v) in self.b_xy.keys():
-                Eqn_dict_num[t,v] += 1
-                Coeff_dict[t,v].append(+1.)
+                Eqn_dict_num[(t,v)] += 1
+                Coeff_dict[(t,v)].append(+1.)
                 q_var = self.sq_vidx(self.idx_of_quad[ (u,t,v,w) ], ltrip_of_idx)
-                Var_dict[t,v].append(q_var)
+                Var_dict[(t,v)].append(q_var)
             #^ if *xy* exists
         #^ for utvw
         for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
-            temp = [Eqn_dict[s,t,v]]*Eqn_dict_num[t,v]
-            Eqn_dict_acc[s,t,v] += temp
+            temp = [Eqn_dict[(s,t,v)]]*Eqn_dict_num[(t,v)]
+            Eqn_dict_acc[(s,t,v)] += temp
         # for 
     elif which_sources == [1,3]:
         for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
             eqn     += 1
-            Eqn_dict[s,t,v] = eqn
+            Eqn_dict[(s,t,v)] = eqn
         #^ for
         for i,utwv in enumerate(self.quad_of_idx):
             u,t,w,v = utwv
             if (t,v) in self.b_xz.keys():
-                Eqn_dict_num[t,v] += 1
-                Coeff_dict[t,v].append(+1.)
+                Eqn_dict_num[(t,v)] += 1
+                Coeff_dict[(t,v)].append(+1.)
                 q_var = self.sq_vidx(self.idx_of_quad[ (u,t,w,v) ], ltrip_of_idx)
-                Var_dict[t,v].append(q_var)
+                Var_dict[(t,v)].append(q_var)
             #^ if *x*z exists
         #^ for utwv
 
         for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
-            temp = [Eqn_dict[s,t,v]]*Eqn_dict_num[t,v]
-            Eqn_dict_acc[s,t,v] += temp
+            temp = [Eqn_dict[(s,t,v)]]*Eqn_dict_num[(t,v)]
+            Eqn_dict_acc[(s,t,v)] += temp
         # for
     elif which_sources == [2,3]:
         for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
             eqn     += 1
-            Eqn_dict[s,t,v] = eqn
+            Eqn_dict[(s,t,v)] = eqn
         #^ for
         for i,uwtv in enumerate(self.quad_of_idx):
             u,w,t,v = uwtv
             if (t,v) in self.b_yz.keys():
-                Eqn_dict_num[t,v] += 1
-                Coeff_dict[t,v].append(+1.)
+                Eqn_dict_num[(t,v)] += 1
+                Coeff_dict[(t,v)].append(+1.)
                 q_var = self.sq_vidx(self.idx_of_quad[ (u,w,t,v) ], ltrip_of_idx)
-                Var_dict[t,v].append(q_var)
+                Var_dict[(t,v)].append(q_var)
             #^ if **yz exists
         #^ for utwv
 
         for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
-            temp = [Eqn_dict[s,t,v]]*Eqn_dict_num[t,v]
-            Eqn_dict_acc[s,t,v] += temp
+            temp = [Eqn_dict[(s,t,v)]]*Eqn_dict_num[(t,v)]
+            Eqn_dict_acc[(s,t,v)] += temp
         # for
     #^ if which sources
     
     for i,stv in enumerate(trip_of_idx):
             s,t,v = stv
             p_var   = sp_vidx(i)
-            Eqn.append( Eqn_dict[s,t,v] )
-            Eqn += Eqn_dict_acc[s,t,v]
+            Eqn.append( Eqn_dict[(s,t,v)] )
+            Eqn += Eqn_dict_acc[(s,t,v)]
             Var.append( p_var )
-            Var += Var_dict[t,v]
+            Var += Var_dict[(t,v)]
             Coeff.append( -1. )
-            Coeff += Coeff_dict[t,v] 
+            Coeff += Coeff_dict[(t,v)] 
     #^ for stv
     toc_p = time.process_time()
     
@@ -253,34 +331,34 @@ def create_model(self, which_sources, output):
     Var_marg = defaultdict(list)
     Coeff_marg = defaultdict(list)
 
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         (s,x) = sx
         eqn += 1
-        Eqn_marg[s,x] = eqn
+        Eqn_marg[(s,x)] = eqn
     #^ for sx exists
         
     for i,sxyz in enumerate(self.quad_of_idx):
         s,x,y,z = sxyz
-        if (s,x) in self.b_sx.keys():
+        if (s,x) in self.b_tx.keys():
             q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
-            Var_marg[s,x].append(q_var)
-            Coeff_marg[s,x].append(+1.)
-            Eqn_marg_num[s,x] += 1
-            self.b[ Eqn_marg[s,x] ] = self.b_sx[(s,x)]
+            Var_marg[(s,x)].append(q_var)
+            Coeff_marg[(s,x)].append(+1.)
+            Eqn_marg_num[(s,x)] += 1
+            self.b[ Eqn_marg[(s,x)] ] = self.b_tx[(s,x)]
         #^ if sx exits
     # for sxyz
     
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         (s,x) = sx
-        temp = [ Eqn_marg[s,x] ]*Eqn_marg_num[s,x]
-        Eqn_marg_acc[s,x] += temp
+        temp = [ Eqn_marg[(s,x)] ]*Eqn_marg_num[(s,x)]
+        Eqn_marg_acc[(s,x)] += temp
     #^ for  sx exists    
     
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         (s,x) = sx
-        Eqn += Eqn_marg_acc[s,x]
-        Var += Var_marg[s,x]
-        Coeff += Coeff_marg[s,x]
+        Eqn += Eqn_marg_acc[(s,x)]
+        Var += Var_marg[(s,x)]
+        Coeff += Coeff_marg[(s,x)]
     #^ for sx exists
 
     # The sy marginals q_{s*y*} = b^y_{sy}
@@ -290,34 +368,34 @@ def create_model(self, which_sources, output):
     Eqn_marg_acc = defaultdict(list)
     Var_marg = defaultdict(list)
     Coeff_marg = defaultdict(list)
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         (s,y) = sy
         eqn += 1
-        Eqn_marg[s,y] = eqn
+        Eqn_marg[(s,y)] = eqn
     #^ for sy exists
         
     for i,sxyz in enumerate(self.quad_of_idx):
         s,x,y,z = sxyz
-        if (s,y) in self.b_sy.keys():
+        if (s,y) in self.b_ty.keys():
             q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
-            Var_marg[s,y].append(q_var)
-            Coeff_marg[s,y].append(+1.)
-            Eqn_marg_num[s,y] += 1
-            self.b[ Eqn_marg[s,y] ] = self.b_sy[(s,y)]
+            Var_marg[(s,y)].append(q_var)
+            Coeff_marg[(s,y)].append(+1.)
+            Eqn_marg_num[(s,y)] += 1
+            self.b[ Eqn_marg[(s,y)] ] = self.b_ty[(s,y)]
         #^ if sy exits
     # for sxyz
     
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         (s,y) = sy
-        temp = [ Eqn_marg[s,y] ]*Eqn_marg_num[s,y]
-        Eqn_marg_acc[s,y] += temp
+        temp = [ Eqn_marg[(s,y)] ]*Eqn_marg_num[(s,y)]
+        Eqn_marg_acc[(s,y)] += temp
     #^ for  sy exists   
         
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         (s,y) = sy
-        Eqn += Eqn_marg_acc[s,y]
-        Var += Var_marg[s,y]
-        Coeff += Coeff_marg[s,y]
+        Eqn += Eqn_marg_acc[(s,y)]
+        Var += Var_marg[(s,y)]
+        Coeff += Coeff_marg[(s,y)]
     #^ for sy exists
 
     # The sz marginals q_{s**z} = b^z_{sz}
@@ -327,34 +405,34 @@ def create_model(self, which_sources, output):
     Var_marg = defaultdict(list)
     Coeff_marg = defaultdict(list)
 
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         (s,z) = sz
         eqn += 1
-        Eqn_marg[s,z] = eqn
+        Eqn_marg[(s,z)] = eqn
     #^ for sz exists
     
     for i,sxyz in enumerate(self.quad_of_idx):
         s,x,y,z = sxyz
-        if (s,z) in self.b_sz.keys():
+        if (s,z) in self.b_tz.keys():
             q_var = self.sq_vidx(self.idx_of_quad[ (s,x,y,z) ], ltrip_of_idx)
-            Var_marg[s,z].append(q_var)
-            Coeff_marg[s,z].append(+1.)
-            Eqn_marg_num[s,z] += 1
-            self.b[ Eqn_marg[s,z] ] = self.b_sz[(s,z)]
+            Var_marg[(s,z)].append(q_var)
+            Coeff_marg[(s,z)].append(+1.)
+            Eqn_marg_num[(s,z)] += 1
+            self.b[ Eqn_marg[(s,z)] ] = self.b_tz[(s,z)]
         #^ if sz exits
     # for sxyz
     
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         (s,z) = sz
-        temp = [ Eqn_marg[s,z] ]*Eqn_marg_num[s,z]
-        Eqn_marg_acc[s,z] += temp
+        temp = [ Eqn_marg[(s,z)] ]*Eqn_marg_num[(s,z)]
+        Eqn_marg_acc[(s,z)] += temp
     #^ for  sz exists    
         
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         (s,z) = sz
-        Eqn += Eqn_marg_acc[s,z]
-        Var += Var_marg[s,z]
-        Coeff += Coeff_marg[s,z]
+        Eqn += Eqn_marg_acc[(s,z)]
+        Var += Var_marg[(s,z)]
+        Coeff += Coeff_marg[(s,z)]
     #^ for sz exists
     toc_m = time.process_time()
     
@@ -426,8 +504,31 @@ def create_model(self, which_sources, output):
 #^ create_model()
 
 def solve(self, c, G, h, dims, A, b, output):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Solves the exponential Cone Program min_{Delta_p}H(T|U,V) where U,V in {X,Y,Z}
+        
+        Args:
+            c: numpy.array - objective function weights
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
+                                         inequalities
+            h: numpy.array - L.H.S. of inequalities 
+            dims: dictionary -  cones to be used 
+                    keys: string - cone type (exponential or nonegative)
+                    values: int - number of cones
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
+                                         q-p coupling equations 
+            b: numpy.array - L.H.S. of equalities 
+            output: int - print different outputs based on (int) to console
+ 
+       Returns: 
+            sol_rpq:    numpy.array - primal optimal solution
+            sol_slack:  numpy.array - slack of primal optimal solution 
+                                      (G*sol_rpq - h)
+            sol_lambda: numpy.array - equalities dual optimal solution
+            sol_mu:     numpy.array - inequalities dual  optimal solution   
+            sol_info:   dictionary - Brief stats of the optimization from ECOS
+
+    """
+
     itic = time.process_time()
     self.marg_xyz = None # for cond[]mutinf computation below
     
@@ -453,8 +554,28 @@ def solve(self, c, G, h, dims, A, b, output):
 #^ solve()
 
 def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu, output= 0):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) 
+          where U,V in {X,Y,Z}
+        
+        Args:
+             which_sources: [1,2] if sources are X and Y 
+                            [1,3] if sources are X and Z
+                            [2,3] if sources are Y and Z
+             sol_rpq:    numpy.array - primal optimal solution
+             sol_slack:  numpy.array - slack of primal optimal solution 
+                                      (G*sol_rpq - h)
+             sol_lambda: numpy.array - equalities dual optimal solution
+             sol_mu:     numpy.array - inequalities dual  optimal solution   
+             output: int - print different outputs based on (int) to console
+
+        Returns: 
+             primal_infeasability: float - maximum violation of the optimal primal solution
+                                           for primal equalities and inequalities
+             dual_infeasability:   float - maximum violation of the optimal dual solution
+                                           for dual equalities and inequalities
+
+    """
+
     # returns pair (p,d) of primal/dual infeasibility (maxima)
     idx_of_trip,trip_of_idx = self.initialization(which_sources)
 
@@ -484,7 +605,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         s,x,y,z = sxyz
         sol_b_sx[s,x] += max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
     #^ for sxyz exists 
-    for sx,i in self.b_sx.items():
+    for sx,i in self.b_tx.items():
         s,x  = sx
         mysum = i - sol_b_sx[s,x]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
@@ -496,7 +617,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         s,x,y,z = sxyz
         sol_b_sy[s,y] += max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
     #^ for sxyz exists 
-    for sy,i in self.b_sy.items():
+    for sy,i in self.b_ty.items():
         s,y  = sy
         mysum = i - sol_b_sy[s,y]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
@@ -508,7 +629,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         s,x,y,z = sxyz
         sol_b_sz[s,z] += max(0., sol_rpq[self.sq_vidx(i, ltrip_of_idx)])
     #^ for sxyz exists 
-    for sz,i in self.b_sz.items():
+    for sz,i in self.b_tz.items():
         s,z  = sz
         mysum = i - sol_b_sz[s,z]
         max_violation_of_eqn = max( max_violation_of_eqn, abs(mysum) )
@@ -530,9 +651,9 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
     itic_idx = time.process_time()
     idx_of_sx = dict()
     i = 0
-    for s in self.S:
+    for s in self.T:
         for x in self.X:
-            if (s,x) in self.b_sx.keys():
+            if (s,x) in self.b_tx.keys():
                 idx_of_sx[(s,x)] = i
                 i += 1
             #^ if sx exists
@@ -541,9 +662,9 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
 
     idx_of_sy = dict()
     i = 0
-    for s in self.S:
+    for s in self.T:
         for y in self.Y:
-            if (s,y) in self.b_sy.keys():
+            if (s,y) in self.b_ty.keys():
                 idx_of_sy[(s,y)] = i
                 i += 1
             #^ if sy exists
@@ -552,9 +673,9 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
 
     idx_of_sz = dict()
     i = 0
-    for s in self.S:
+    for s in self.T:
         for z in self.Z:
-            if (s,z) in self.b_sz.keys():
+            if (s,z) in self.b_tz.keys():
                 idx_of_sz[(s,z)] = i
                 i += 1
             #^ if sz exists
@@ -576,7 +697,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         sz_idx = defaultdict(lambda: 0.)
         for i,sxyz in enumerate(self.quad_of_idx):
             s,x,y,z = sxyz
-            sz_idx[(s,x,y)] = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+            sz_idx[(s,x,y)] = 2*n + len(self.b_tx) + len(self.b_ty) + idx_of_sz[(s,z)]
         #^ for
         
         # Compute mu_xy: dual varaible of the q-t coupling contsraints
@@ -589,7 +710,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         for k, sxy in enumerate(trip_of_idx):
             s,x,y = sxy
             sx_idx = 2*n + idx_of_sx[(s,x)]
-            sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
+            sy_idx = 2*n + len(self.b_tx) + idx_of_sy[(s,y)]
             # nu_sxy: dual variable of the q-w coupling constraints
             nu_sxy = sol_lambda[ idx_of_trip[(s,x,y)] ]
             assert nu_sxy == sol_lambda[k], "problem in nu"
@@ -628,7 +749,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         sy_idx = defaultdict(lambda: 0.)
         for i,sxyz in enumerate(self.quad_of_idx):
             s,x,y,z = sxyz
-            sy_idx[(s,x,z)] = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
+            sy_idx[(s,x,z)] = 2*n + len(self.b_tx) + idx_of_sy[(s,y)]
         #^ for
 
         # mu_xz: dual varaible of the q-t coupling contsraints
@@ -642,7 +763,7 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
             s,x,z = sxz
             # Get indices of dual variables of the marginal constriants
             sx_idx = 2*n + idx_of_sx[(s,x)]
-            sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+            sz_idx = 2*n + len(self.b_tx) + len(self.b_ty) + idx_of_sz[(s,z)]
 
             # nu_sxz: dual variable of the q-w coupling constraints
             
@@ -694,8 +815,8 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
         for k, syz in enumerate(trip_of_idx):
             s,y,z = syz
             # Get indices of dual variables of the marginal constriants
-            sy_idx = 2*n + len(self.b_sx) + idx_of_sy[(s,y)]
-            sz_idx = 2*n + len(self.b_sx) + len(self.b_sy) + idx_of_sz[(s,z)]
+            sy_idx = 2*n + len(self.b_tx) + idx_of_sy[(s,y)]
+            sz_idx = 2*n + len(self.b_tx) + len(self.b_ty) + idx_of_sz[(s,z)]
 
             # nu_syz: dual variable of the q-w coupling constraints
             
@@ -731,11 +852,77 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
 #^ check_feasibility()    
 
 def dual_value(self, sol_lambda, b):
+    """Evaluates the dual value of H(T|U,V) where U,V in {X,Y,Z}
+        
+        Args:
+             sol_lambda: numpy.array - equalities dual optimal solution
+             b: numpy.array - L.H.S. of equalities 
+        
+        Returns: 
+            float 
+
+    """
+
     return -np.dot(sol_lambda, b)
 
 def marginals(self, which_sources, sol_rpq, output):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Computes all the marginal distributions of the optimal distribution
+
+        Args:
+             which_sources: [1,2] if sources are X and Y and Q is the optimal
+                            distribution of min_{Delta_P} H(T|X,Y)
+                            [1,3] if sources are X and Z and Q is the optimal
+                            distribution of min_{Delta_P} H(T|X,Z)
+                            [2,3] if sources are Y and Z and Q is the optimal
+                            distribution of min_{Delta_P} H(T|Y,Z)
+
+             sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone
+                      where q is the optimal distribution
+             output: int - print different outputs based on (int) to console
+             
+        Returns: 
+            dictionary - optimal marginal distribution of T
+              keys: t
+              values: Q(t)
+            dictionary - optimal marginal distribution of X
+              keys: x
+              values: Q(x)
+            dictionary - optimal marginal distribution of Y
+              keys: y
+              values: Q(y)
+            dictionary - optimal marginal distribution of Z
+              keys: z
+              values: Q(z)
+            dictionary - optimal marginal distribution of (T,X)
+              keys: t,x
+              values: Q(t,x)
+            dictionary - optimal marginal distribution of (T,Y)
+              keys: t,y
+              values: Q(t,y)
+            dictionary - optimal marginal distribution of (T,Z)
+              keys: t,z
+              values: Q(t,z)
+            dictionary - optimal marginal distribution of (X,Y)
+              keys: x,y
+              values: Q(x,y)
+            dictionary - optimal marginal distribution of (X,Z)
+              keys: x,z
+              values: Q(x,z)
+            dictionary - optimal marginal distribution of (Y,Z)
+              keys: y,z
+              values: Q(y,z)
+            dictionary - optimal marginal distribution of (T,X,Y)
+              keys: t,x,y
+              values: Q(t,x,y)
+            dictionary - optimal marginal distribution of (T,X,Z)
+              keys: t,x,z
+              values: Q(t,x,z)
+            dictionary - optimal marginal distribution of (T,Y,Z)
+              keys: t,y,z
+              values: Q(t,y,z)
+        
+    """
+    
     # provide the positive marginals all of a pdf for random varibles (A,B,C,D)
     
     itic = time.process_time()
@@ -797,8 +984,39 @@ def marginals(self, which_sources, sol_rpq, output):
 
 
 def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, marg_YZ, marg_SXY, marg_SXZ, marg_SYZ):
-    # (c) Abdullah Makkeh, Dirk Oliver Theis
-    # Permission to use and modify under Apache License version 2.0
+    """Evalutes the value of H(T|U,V) w.r.t. the optimal distribution where U,V in {X,Y,Z}
+        
+        Args:
+             which_sources: [1,2] if sources are X and Y 
+                            [1,3] if sources are X and Z
+                            [2,3] if sources are Y and Z
+             sol_rpq:    numpy.array - primal optimal solution
+             output: int - print different outputs based on (int) to console
+             marg_XY: dictionary - optimal marginal distribution of (X,Y)
+              keys: x,y
+              values: Q(x,y)
+             marg_XZ: dictionary - optimal marginal distribution of (X,Z)
+              keys: x,z
+              values: Q(x,z)
+             marg_YZ: dictionary - optimal marginal distribution of (Y,Z)
+              keys: y,z
+              values: Q(y,z)
+             marg_TXY: dictionary - optimal marginal distribution of (T,X,Y)
+              keys: t,x,y
+              values: Q(t,x,y)
+             marg_TXZ: dictionary - optimal marginal distribution of (T,X,Z)
+              keys: t,x,z
+              values: Q(t,x,z)
+             marg_TYZ: dictionary - optimal marginal distribution of (T,Y,Z)
+              keys: t,y,z
+              values: Q(t,y,z)
+
+        Returns: 
+            (if [1,2]: U,V=X,Y | if [1,3]: U,V=X,Z | if [2,3]: U,V=Y,Z)
+            mysum: float - H(T|U,V)
+
+    """
+
     # compute cond entropy of the distribution in self.sol_rpq
     
     mysum = 0.
@@ -816,6 +1034,7 @@ def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, ma
         itoc = time.process_time()
 
         if output == 2: print("TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|XY):", itoc - itic,"secs")
+        # print("H(T|XY)", mysum)
         return mysum
     #^ if sources
     elif which_sources == [1,3]:
@@ -832,6 +1051,7 @@ def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, ma
         itoc = time.process_time()
 
         if output == 2: print("TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|XZ):", itoc - itic,"secs")
+        # print("H(T|XZ)", mysum)
         return mysum
     #^ if sources
     elif which_sources == [2,3]:
@@ -848,6 +1068,7 @@ def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, ma
         itoc = time.process_time()
         
         if output == 2: print("TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|YZ):", itoc - itic,"secs")
+        # print("H(T|YZ)", mysum)
         return mysum
     #^ if sources
     else:
@@ -867,9 +1088,9 @@ def condentropy_1var(self,which_sources,sol_rpq, marg_SX, marg_SY, marg_SZ, marg
     if which_sources == [1,2]:
         # H( S | Z )
         itic = time.process_time()
-        for s in self.S:
+        for s in self.T:
             for z in self.Z:
-                if (s,z) in self.b_sz.keys() and marg_SZ[(s,z)] > 0 and marg_Z[z] > 0:
+                if (s,z) in self.b_tz.keys() and marg_SZ[(s,z)] > 0 and marg_Z[z] > 0:
                     # Subtract q_{s,z}*log( q_{s,z}/ q_{z} )
                     mysum -= marg_SZ[(s,z)]*log(marg_SZ[(s,z)]/marg_Z[z])
                 #^ if sz exists
@@ -882,9 +1103,9 @@ def condentropy_1var(self,which_sources,sol_rpq, marg_SX, marg_SY, marg_SZ, marg
     elif which_sources == [1,3]:
         # H( S | Y )
         itic = time.process_time()
-        for s in self.S:
+        for s in self.T:
             for y in self.Y:
-                if (s,y) in self.b_sy.keys()and marg_SY[(s,y)] > 0 and marg_Y[y] > 0:
+                if (s,y) in self.b_ty.keys()and marg_SY[(s,y)] > 0 and marg_Y[y] > 0:
                     # Subtract q_{s,y}*log( q_{s,y}/ q_{y} )
                     mysum -= marg_SY[(s,y)]*log(marg_SY[(s,y)]/marg_Y[y])
                 #^ if sy exists
@@ -898,9 +1119,9 @@ def condentropy_1var(self,which_sources,sol_rpq, marg_SX, marg_SY, marg_SZ, marg
     elif which_sources == [2,3]:
         # H ( S | X )
         itic = time.process_time()
-        for s in self.S:
+        for s in self.T:
             for x in self.X:
-                if (s,x) in self.b_sx.keys() and marg_SX[(s,x)] > 0 and marg_X[x] > 0:
+                if (s,x) in self.b_tx.keys() and marg_SX[(s,x)] > 0 and marg_X[x] > 0:
                     # Subtract q_{s,x}*log( q_{s,x}/ q_{x} )
                     mysum -= marg_SX[(s,x)]*log(marg_SX[(s,x)]/marg_X[x])
                 #^ if sx exists
