@@ -1,20 +1,14 @@
 """test_chicharro_subparts.py
 a python script to test the hierarchy of finding the finer Trivariate PID
 """
-
-from sys import path
-path.insert(0, "../../BROJA_2PID")
-
-import BROJA_2PID
-
 import numpy as np
 from numpy.linalg import inv
 from collections import defaultdict
-
-path.insert(0, "..")
-import Chicharro_pid
-from Chicharro_pid import I_VW, I_XYZ, I_V
 import math 
+import BROJA_2PID
+import Chicharro_PID
+from Chicharro_PID import I_VW, I_XYZ, I_V
+
 log = math.log2
 
 
@@ -253,7 +247,7 @@ def compute_pid(gate):
       # Start Computing
       print("Starting Chicharro_PID.pid() on "+system+" subsystem.")
 
-      returndict = Chicharro_pid.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
+      returndict = Chicharro_PID.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
       msg="""PID of"""+system+"""
       Synergistic information: {CI}
       Unique information in X: {UIX}
@@ -297,7 +291,7 @@ def compute_pid(gate):
       # Start computing
       print("Starting Chicharro_PID.pid() on "+system+" subsystem.")
 
-      returndict = Chicharro_pid.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
+      returndict = Chicharro_PID.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
       msg="""PID of """+system+"""
       Synergistic information: {CI}
       Unique information in X: {UIX}

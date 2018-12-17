@@ -1,9 +1,5 @@
 # test_copy_gate.py
-
-from sys import path
-path.insert(0,"..")
-
-from Chicharro_pid import pid, Chicharro_pid_Exception
+from Chicharro_PID import pid, Chicharro_pid_Exception
 
 import time
 import pickle
@@ -62,7 +58,7 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
                 # Compute PID 
                 print("Run Chicharro_PID.pid().")
                 tic = time.time()
-                returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=2, **parms)
+                returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=0, **parms)
                 toc = time.time()
 
                 # Compute deviations from the analytical results
@@ -120,8 +116,8 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
                 solver    = returndict['Ecos Solver Object']
                 solver_II = returndict['Opt II Solver Object']
                 pdf_clean = { k:v  for k,v in pdf.items() if v > 1.e-300 }
-                condentropy__orig = solver.condentropy__orig(pdf_clean)
-                entropy_S     = solver_II.entropy_S(pdf_clean)
+                condentropy__orig = solver.condentropy__orig(pdf_clean, output = 0)
+                entropy_S     = solver.entropy_V(1, pdf_clean, output = 0)
 
                 # Compute relative negativity
                 neg = min( returndict['SI'], returndict['CI'],
@@ -132,7 +128,7 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
 
                 # Store the (|X|,|Y|,|Z|) when rel_neg is significant 
                 if rel_neg <= -1.e-4:
-                    Npid.append((nX,nY,nZ))
+                    Npid.append((n_X,n_Y,n_Z))
                 #^ if rel_neg
             #^ for n_Z
         #^ for n_Y
