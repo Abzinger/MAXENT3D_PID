@@ -1,13 +1,13 @@
-"""test_chicharro_subparts.py
+"""test_trivariate_finer_parts.py
 a python script to test the hierarchy of finding the finer Trivariate PID
 """
 import numpy as np
 from numpy.linalg import inv
 from collections import defaultdict
-import math 
+import math
 import BROJA_2PID
-import Chicharro_PID
-from Chicharro_PID import I_VW, I_XYZ, I_V
+import MAXENT3D_PID
+from MAXENT3D_PID import I_VW, I_XYZ, I_V
 
 log = math.log2
 
@@ -245,9 +245,9 @@ def compute_pid(gate):
       parms['keep_solver_object'] = True
 
       # Start Computing
-      print("Starting Chicharro_PID.pid() on "+system+" subsystem.")
+      print("Starting MAXENT3D_PID.pid() on "+system+" subsystem.")
 
-      returndict = Chicharro_PID.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
+      returndict = MAXENT3D_PID.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
       msg="""PID of"""+system+"""
       Synergistic information: {CI}
       Unique information in X: {UIX}
@@ -289,9 +289,9 @@ def compute_pid(gate):
       parms['keep_solver_object'] = True
 
       # Start computing
-      print("Starting Chicharro_PID.pid() on "+system+" subsystem.")
+      print("Starting MAXENT3D_PID.pid() on "+system+" subsystem.")
 
-      returndict = Chicharro_PID.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
+      returndict = MAXENT3D_PID.pid(pdf, cone_solver="ECOS", parallel ='on', output=0, **parms)
       msg="""PID of """+system+"""
       Synergistic information: {CI}
       Unique information in X: {UIX}
