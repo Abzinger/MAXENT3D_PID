@@ -1,8 +1,8 @@
 """
-# Chicharro_pid.py -- Python module
+# MAXENT3D_PID.py -- Python module
 #
-# Chicharro_pid: Chicharro trivariate Partial Information Decomposition
-# https://github.com/Abzinger/Chicharro_pid 
+# MAXENT3D_PID: Chicharro trivariate Partial Information Decomposition
+# https://github.com/Abzinger/MAXENT3D_PID 
 # (c) Abdullah Makkeh, Dirk Oliver Theis
 # Permission to use and modify with proper attribution
 # (Apache License version 2.0)
@@ -44,8 +44,8 @@ def p_vidx(i):
 def q_vidx(i):
     return 3*i+2
 
-class Chicharro_pid_Exception(Exception):
-    """prints exception when Chicharro_PID doesn't return a solution 
+class MAXENT3D_PID_Exception(Exception):
+    """prints exception when MAXENT3D_PID doesn't return a solution 
     """
     pass
 
@@ -148,7 +148,7 @@ class Solve_w_ECOS():
             mysum -= p*log(p/marg_xyz[x,y,z])
         #^ for
         itoc = time.process_time()
-        if output == 2: print("Chicharro_PID.condentropy__orig(): Time to compute H(T|XYZ) of the input pdf:", itoc - itic, "secs")
+        if output == 2: print("MAXENT3D_PID.condentropy__orig(): Time to compute H(T|XYZ) of the input pdf:", itoc - itic, "secs")
         return mysum
     #^ condentropy__orig()
 
@@ -190,7 +190,7 @@ class Solve_w_ECOS():
                 if marg_V[t] > 0: mysum -= marg_V[t]*log( marg_V[t] )
             #^ for
             itoc = time.process_time()
-            if output == 2: print("Chicharro_PID.entopry_V(): Time to compute H(T):", itoc - itic, "secs")
+            if output == 2: print("MAXENT3D_PID.entopry_V(): Time to compute H(T):", itoc - itic, "secs")
             return mysum
 
         elif V == 2:
@@ -208,7 +208,7 @@ class Solve_w_ECOS():
                 mysum -= marg_V[x]*log( marg_V[x] )
             #^ for
             itoc = time.process_time()
-            if output == 2: print("Chicharro_PID.entropy_V(): Time to compute H(X):", itoc - itic, "secs")
+            if output == 2: print("MAXENT3D_PID.entropy_V(): Time to compute H(X):", itoc - itic, "secs")
             return mysum
 
         elif V == 3:
@@ -226,7 +226,7 @@ class Solve_w_ECOS():
                 mysum -= marg_V[y]*log( marg_V[y] )
             #^ for
             itoc = time.process_time()
-            if output == 2: print("Chicharro_PID.entropy_V(): Time to compute H(Y):", itoc - itic, "secs")
+            if output == 2: print("MAXENT3D_PID.entropy_V(): Time to compute H(Y):", itoc - itic, "secs")
             return mysum
 
         elif V == 4:
@@ -244,10 +244,10 @@ class Solve_w_ECOS():
                 mysum -= marg_V[z]*log( marg_V[z] )
             #^ for
             itoc = time.process_time()
-            if output == 2: print("Chicharro_PID.entropy_V(): Time to compute H(Z):", itoc - itic, "secs")
+            if output == 2: print("MAXENT3D_PID.entropy_V(): Time to compute H(Z):", itoc - itic, "secs")
             return mysum
         else:
-            print("Chicharro_PID.entropy_V(): The argument V takes the values: 1, 2, 3, or 4")
+            print("MAXENT3D_PID.entropy_V(): The argument V takes the values: 1, 2, 3, or 4")
             exit(1)
     #^ entropy()
 
@@ -990,7 +990,7 @@ def condent_V(V, p, output = 0):
             if r > 0: mysum -= r*log(r/marg_V[x])
         #^ for tx exists
         itoc = time.process_time()
-        if output == 2: print("Chicharro_PID.condent_V(): Time to compute H(T|X):", itoc - itic, "secs")
+        if output == 2: print("MAXENT3D_PID.condent_V(): Time to compute H(T|X):", itoc - itic, "secs")
         return mysum
     #^ if
 
@@ -1011,7 +1011,7 @@ def condent_V(V, p, output = 0):
             if r > 0: mysum -= r*log( r / marg_V[y] )
         #^ for ty exists
         itoc = time.process_time()
-        if output ==2: print("Chicharro_PID.condent_V(): Time to compute H(T|Y):", itoc - itic, "secs")
+        if output ==2: print("MAXENT3D_PID.condent_V(): Time to compute H(T|Y):", itoc - itic, "secs")
         return mysum
     #^ if
 
@@ -1032,7 +1032,7 @@ def condent_V(V, p, output = 0):
             if r > 0: mysum -= r*log( r / marg_V[z] )
         #^ for tz exists
         itoc = time.process_time()
-        if output == 2: print("Chicharro_PID.condent_V(): Time to compute H(T|Z):", itoc - itic, "secs")
+        if output == 2: print("MAXENT3D_PID.condent_V(): Time to compute H(T|Z):", itoc - itic, "secs")
     return mysum
     #^ if
 #^ condent_V()
@@ -1276,23 +1276,23 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
                          
     """
 
-    assert type(pdf_dirty) is dict, "Chicharro_PID.pid(pdf): pdf must be a dictionary"
-    assert type(cone_solver) is str, "Chicharro_PID.pid(pdf): `cone_solver' parameter must be string (e.g., 'ECOS')"
+    assert type(pdf_dirty) is dict, "MAXENT3D_PID.pid(pdf): pdf must be a dictionary"
+    assert type(cone_solver) is str, "MAXENT3D_PID.pid(pdf): `cone_solver' parameter must be string (e.g., 'ECOS')"
     if __debug__:
         sum_p = 0
         for k,v in pdf_dirty.items():
-            assert type(k) is tuple or type(k) is list,           "Chicharro_PID.pid(pdf): pdf's keys must be tuples or lists"
-            assert len(k)==4,                                     "Chicharro_PID.pid(pdf): pdf's keys must be tuples/lists of length 4"
-            assert type(v) is float or ( type(v)==int and v==0 ), "Chicharro_PID.pid(pdf): pdf's values must be floats"
-            assert v > -.1,                                       "Chicharro_PID.pid(pdf): pdf's values must not be negative"
+            assert type(k) is tuple or type(k) is list,           "MAXENT3D_PID.pid(pdf): pdf's keys must be tuples or lists"
+            assert len(k)==4,                                     "MAXENT3D_PID.pid(pdf): pdf's keys must be tuples/lists of length 4"
+            assert type(v) is float or ( type(v)==int and v==0 ), "MAXENT3D_PID.pid(pdf): pdf's values must be floats"
+            assert v > -.1,                                       "MAXENT3D_PID.pid(pdf): pdf's values must not be negative"
             sum_p += v
         #^ for
-        assert abs(sum_p - 1)< 1.e-10,                                       "Chicharro_PID.pid(pdf): pdf's values must sum up to 1 (tolerance of precision is 1.e-10)"
+        assert abs(sum_p - 1)< 1.e-10,                                       "MAXENT3D_PID.pid(pdf): pdf's values must sum up to 1 (tolerance of precision is 1.e-10)"
     #^ if
-    assert type(output) is int, "Chicharro_PID.pid(pdf,output): output must be an integer"
+    assert type(output) is int, "MAXENT3D_PID.pid(pdf,output): output must be an integer"
 
     # Check if the solver is implemented:
-    assert cone_solver=="ECOS", "Chicharro_PID.pid(pdf): We currently don't have an interface for the Cone Solver "+cone_solver+" (only ECOS)."
+    assert cone_solver=="ECOS", "MAXENT3D_PID.pid(pdf): We currently don't have an interface for the Cone Solver "+cone_solver+" (only ECOS)."
 
     pdf = { k:v  for k,v in pdf_dirty.items() if v > 1.e-300 }
 
@@ -1306,9 +1306,9 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     b_yz = marginal_yz(pdf)
     
     toc_marg = time.time()
-    if output > 0: print("\nChicharro_PID.pid(): Time to create marginals:", toc_marg - tic_marg, "secs\n")
+    if output > 0: print("\nMAXENT3D_PID.pid(): Time to create marginals:", toc_marg - tic_marg, "secs\n")
     # if cone_solver=="ECOS": .....
-    if output > 0:  print("\nChicharro_PID.pid(): Preparing Cone Program data",end="...\n")
+    if output > 0:  print("\nMAXENT3D_PID.pid(): Preparing Cone Program data",end="...\n")
 
     solver = Solve_w_ECOS(bx_tx, by_ty, bz_tz, b_xy, b_xz, b_yz)
     subsolver_I = Opt_I(bx_tx, by_ty, bz_tz, b_xy, b_xz, b_yz)
@@ -1344,7 +1344,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     #^ if parallel
     
     toc_mod = time.time()
-    if output > 0: print("\nChicharro_PID.pid(): Time to create all models. ", toc_mod - tic_mod, "secs\n")
+    if output > 0: print("\nMAXENT3D_PID.pid(): Time to create all models. ", toc_mod - tic_mod, "secs\n")
 
     if output > 2:
         subsolver_I.verbose = True
@@ -1358,10 +1358,10 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
 
     subsolver_I.ecos_kwargs = solver_args
     subsolver_II.ecos_kwargs = solver_args
-    if output > 0: print("Chicharro_PID.pid(): Preparing Cone Program data is done.")
+    if output > 0: print("MAXENT3D_PID.pid(): Preparing Cone Program data is done.")
 
-    if output == 1: print("Chicharro_PID.pid(): Starting solver",end="...")
-    if output > 2: print("Chicharro_PID.pid(): Starting solver.")
+    if output == 1: print("MAXENT3D_PID.pid(): Starting solver",end="...")
+    if output > 2: print("MAXENT3D_PID.pid(): Starting solver.")
 
     if parallel == "on":
 
@@ -1396,18 +1396,18 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         if ecos_keep_solver_obj:
             return solver
         else:
-            raise Chicharro_pid_Exception("Chicharro_pid_Exception: Cone Programming solver failed to find (near) optimal solution. Please report the input probability density function to abdullah.makkeh@gmail.com")
+            raise MAXENT3D_PID_Exception("MAXENT3D_PID_Exception: Cone Programming solver failed to find (near) optimal solution. Please report the input probability density function to abdullah.makkeh@gmail.com")
         #^ if (keep solver)
     #^ if (solve failure)
 
-    if output > 0:  print("\nChicharro_PID.pid(): Solving is done.\n")
+    if output > 0:  print("\nMAXENT3D_PID.pid(): Solving is done.\n")
 
     tic_stats = time.time()
     if output > 0:
-        print("\nChicharro_PID.pid(): Stats for optimizing H(T|X,Y,Z):\n", sol_info_I)
-        print("\nChicharro_PID.pid(): Stats for optimizing H(T|X,Y):\n", sol_info_12)
-        print("\nChicharro_PID.pid(): Stats for optimizing H(T|X,Z):\n", sol_info_13)
-        print("\nChicharro_PID.pid(): Stats for optimizing H(T|Y,Z):\n", sol_info_23)
+        print("\nMAXENT3D_PID.pid(): Stats for optimizing H(T|X,Y,Z):\n", sol_info_I)
+        print("\nMAXENT3D_PID.pid(): Stats for optimizing H(T|X,Y):\n", sol_info_12)
+        print("\nMAXENT3D_PID.pid(): Stats for optimizing H(T|X,Z):\n", sol_info_13)
+        print("\nMAXENT3D_PID.pid(): Stats for optimizing H(T|Y,Z):\n", sol_info_23)
     if parallel == 'on':
 
         # Compute the value of the dual objective function for each optimization:
@@ -1517,7 +1517,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     # .....
     # #^endif
     toc_stats = time.time()
-    if output > 0: print("\nChicharro_PID.pid(): Time for retrieving results:", toc_stats - tic_stats, "secs\n")
+    if output > 0: print("\nMAXENT3D_PID.pid(): Time for retrieving results:", toc_stats - tic_stats, "secs\n")
 
 
     tic_dict = time.time()
@@ -1573,7 +1573,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     #^if parallel
 
     toc_o = time.time()
-    if output > 0: print("\nChicharro_PID.pid(): Time for computing Numerical Errors:", toc_o - tic_o, "secs\n")
+    if output > 0: print("\nMAXENT3D_PID.pid(): Time for computing Numerical Errors:", toc_o - tic_o, "secs\n")
 
     # Store the numerical violations of the optimization problems:
     # min -H( T|XYZ ) min -H( T|XY ), min -H( T|XZ ) and  min -H( T|YZ ) )
@@ -1593,7 +1593,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     #^ if (keep solver)
     
     toc_dict = time.time()
-    if output > 0: print("\nChicharro_PID.pid(): Time for storing results:", toc_dict - tic_dict, "secs\n")
+    if output > 0: print("\nMAXENT3D_PID.pid(): Time for storing results:", toc_dict - tic_dict, "secs\n")
 
     # Recovering Solutions if duality is violated
     which_probs = []
@@ -1605,19 +1605,19 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
 
     # Determine which problems didn't converge
     if return_data["Num_err_I"][2] >= 1.e-4:
-        print("Chicharro_PID.pid(): Numerical problems [min - H(T|XYZ)]")
+        print("MAXENT3D_PID.pid(): Numerical problems [min - H(T|XYZ)]")
         which_probs.append(1)
         gap_I = return_data["Num_err_I"][2]
     if return_data["Num_err_12"][2] >= 1.e-4:
-        print("Chicharro_PID.pid(): Numerical problems [min - H(T|XY)]")
+        print("MAXENT3D_PID.pid(): Numerical problems [min - H(T|XY)]")
         which_probs.append(12)
         gap_12 = return_data["Num_err_12"][2]
     if return_data["Num_err_13"][2] >= 1.e-4:
-        print("Chicharro_PID.pid(): Numerical problems [min - H(T|XZ)]")
+        print("MAXENT3D_PID.pid(): Numerical problems [min - H(T|XZ)]")
         which_probs.append(13)
         gap_13 = return_data["Num_err_13"][2]
     if return_data["Num_err_23"][2] >= 1.e-4:
-        print("Chicharro_PID.pid(): Numerical problems [min - H(T|YZ)]")
+        print("MAXENT3D_PID.pid(): Numerical problems [min - H(T|YZ)]")
         which_probs.append(23)
         gap_23 = return_data["Num_err_23"][2]
     if len(which_probs) == 4:
@@ -1634,7 +1634,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     QP_solver_args['reltol']= 1.e-15
     QP_solver_args['feastol']= 1.e-15
     if which_probs == [1]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         CI   = ( return_data["CI"],   1.-gap_I )
         SI   = ( return_data["SI"],   1.-gap_I )
         UIX  = ( return_data["UIX"],  1.-gap_I )
@@ -1664,7 +1664,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]
 
     elif which_probs == [12]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         CI   = ( return_data["CI"],   0.        )
         SI   = ( return_data["SI"],   1.-gap_12 )
         UIX  = ( return_data["UIX"],  0.        )
@@ -1690,7 +1690,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[4]
 
     elif which_probs == [13]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         CI   = ( return_data["CI"],   0.        )
         SI   = ( return_data["SI"],   1.-gap_13 )
         UIX  = ( return_data["UIX"],  0.        )
@@ -1716,7 +1716,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[4]
 
     elif which_probs == [23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         CI   = ( return_data["CI"],   0.        )
         SI   = ( return_data["SI"],   1.-gap_23 )
         UIX  = ( return_data["UIX"],  1.-gap_23 )
@@ -1742,7 +1742,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIXZ"] = sol_tx[4]
         
     elif which_probs == [1,12]:
-        print("Chicharro_PID.pid():Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid():Recovering solution by Quadratic Programming")
         gap  = gap_I + gap_12
         CI   = ( return_data["CI"],   1.-gap_I )
         SI   = ( return_data["SI"],   1.-gap   )
@@ -1774,7 +1774,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]        
 
     elif which_probs == [1,13]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_I + gap_13
         CI   = ( return_data["CI"],   1.-gap_I )
         SI   = ( return_data["SI"],   1.-gap   )
@@ -1805,7 +1805,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]
 
     elif which_probs == [1,23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_I + gap_23
         CI   = ( return_data["CI"],   1.-gap_I )
         SI   = ( return_data["SI"],   1.-gap   )
@@ -1836,7 +1836,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]
 
     elif which_probs == [12,13]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_12 + gap_13
         CI   = ( return_data["CI"],   0.        )
         SI   = ( return_data["SI"],   1.-gap    )
@@ -1865,7 +1865,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[6]
 
     elif which_probs == [12,23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_12 + gap_23
         CI   = ( return_data["CI"],   0.        )
         SI   = ( return_data["SI"],   1.-gap    )
@@ -1894,7 +1894,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[6]
 
     elif which_probs == [13,23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_13 + gap_23
         CI   = ( return_data["CI"],   0.        )
         SI   = ( return_data["SI"],   1.-gap    )
@@ -1923,7 +1923,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[6]
 
     elif which_probs == [1,12,13]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_I + gap_12 + gap_13
         CI   = ( return_data["CI"],   1.-gap_I            )
         SI   = ( return_data["SI"],   1.-gap              )
@@ -1954,7 +1954,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]
 
     elif which_probs == [1,12,23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_I + gap_12 + gap_23
         CI   = ( return_data["CI"],   1.-gap_I            )
         SI   = ( return_data["SI"],   1.-gap              )
@@ -1985,7 +1985,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]
 
     elif which_probs == [1,13,23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_I + gap_13 + gap_23
         CI   = ( return_data["CI"],   1.-gap_I            )
         SI   = ( return_data["SI"],   1.-gap              )
@@ -2016,7 +2016,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[8]
 
     elif which_probs == [12,13,23]:
-        print("Chicharro_PID.pid(): Recovering solution by Quadratic Programming")
+        print("MAXENT3D_PID.pid(): Recovering solution by Quadratic Programming")
         gap  = gap_12 + gap_13 + gap_23
         CI   = ( return_data["CI"],   0.                   )
         SI   = ( return_data["SI"],   1.-gap               )
@@ -2046,7 +2046,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
         return_data["UIYZ"] = sol_tx[7]
     #^ if which problem
     itoc_recover = time.process_time()
-    if which_probs != [] and output > 0: print("\nChicharro_PID.pid(): Time to recover solution is:", itoc_recover - itic_recover," secs") 
+    if which_probs != [] and output > 0: print("\nMAXENT3D_PID.pid(): Time to recover solution is:", itoc_recover - itic_recover," secs") 
     # Sanity check
 
     #Check: MI(T; X,Y,Z) = SI + CI + UIX + UIY + UIZ + UIXY + UIXZ + UIYZ
@@ -2056,25 +2056,25 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
                - return_data['UIX'] - return_data['UIY'] - return_data['UIZ']
                - return_data['UIXY'] - return_data['UIXZ'] - return_data['UIYZ'])
     
-    assert vio_T_XYZ < tol,                                 "Chicharro_PID.pid(): PID quantities must  sum up to mutual information, the violation is "+str(vio_T_XYZ)+", and the precision is set to "+str(tol)
+    assert vio_T_XYZ < tol,                                 "MAXENT3D_PID.pid(): PID quantities must  sum up to mutual information, the violation is "+str(vio_T_XYZ)+", and the precision is set to "+str(tol)
 
     # Check: MI(T; X) = SI + UIX + UIXY + UIXZ
     vio_T_X = abs( I_V(1,pdf)
                 - return_data['SI'] - return_data['UIX'] - return_data['UIXY'] - return_data['UIXZ'] )
-    assert vio_T_X < tol, "Chicharro_PID.pid(): Unique and shared of X must sum up to MI(T; X), the violation is"+str(vio_T_X)+" and the precision is set to "+str(tol)
+    assert vio_T_X < tol, "MAXENT3D_PID.pid(): Unique and shared of X must sum up to MI(T; X), the violation is"+str(vio_T_X)+" and the precision is set to "+str(tol)
 
     # Check: MI(T; Y) = SI + UIY + UIXY + UIYZ
     vio_T_Y = abs( I_V(2,pdf)
                 - return_data['SI'] - return_data['UIY'] - return_data['UIXY'] - return_data['UIYZ'] )
     
-    assert vio_T_Y < tol, "Chicharro_PID.pid(): Unique and shared of Y must sum up to MI(T; Y), and the violation is"+str(vio_T_Y)+", and the precision is set to"+str(tol)
+    assert vio_T_Y < tol, "MAXENT3D_PID.pid(): Unique and shared of Y must sum up to MI(T; Y), and the violation is"+str(vio_T_Y)+", and the precision is set to"+str(tol)
 
 
     # Check: MI(T; Z) = SI + UIZ + UIXZ + UIYZ
     vio_T_Z = abs( I_V(3,pdf)
                 - return_data['SI'] - return_data['UIZ'] - return_data['UIXZ'] - return_data['UIYZ'])
     
-    assert vio_T_Z < tol, "Chicharro_PID.pid(): Unique and shared of Z must sum up to MI(S; Z), the violation is"+str(vio_T_Z)+", and the precision is set to"+str(tol)
+    assert vio_T_Z < tol, "MAXENT3D_PID.pid(): Unique and shared of Z must sum up to MI(S; Z), the violation is"+str(vio_T_Z)+", and the precision is set to"+str(tol)
 
     return return_data
 #^ pid()
