@@ -1,5 +1,5 @@
 # test_gates.py
-from Chicharro_PID import pid, Chicharro_pid_Exception
+from MAXENT3D_PID import pid, MAXENT3D_PID_Exception
 
 
 # AND gate

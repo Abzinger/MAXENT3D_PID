@@ -1,5 +1,5 @@
-# test_gates.py
-from Chicharro_PID import pid, Chicharro_pid_Exception
+# test_and_gate.py
+from MAXENT3D_PID import pid, MAXENT3D_PID_Exception
 
 
 # AND DUBLICATE
@@ -13,7 +13,7 @@ andDgate[ (1,1,1,1) ] = .25
 parms = dict()
 parms['max_iters'] = 100
 
-print("Starting Chicharro_PID.pid() on AND gate.")
+print("Starting MAXENT3D_PID.pid() on AND gate.")
 try:
   sol = pid(andDgate, parallel='on', output=3, **parms)
   msg="""Synergistic information: {CI}
@@ -37,7 +37,7 @@ try:
   Dual feasibility ( min MI(S;Y,Z) ): {Num_err_23[1]}
   Duality Gap ( min MI(S;Y,Z) ): {Num_err_23[2]}"""
   print(msg.format(**sol))
-except Chicharro_pid_Exception:
+except MAXENT3D_PID_Exception:
   print("Cone Programming solver failed to find (near) optimal solution. Please report the input probability density function to abdullah.makkeh@gmail.com")
 
 print("The End")

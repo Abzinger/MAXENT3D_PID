@@ -1,5 +1,5 @@
 # test_copy_gate.py
-from Chicharro_PID import pid, Chicharro_pid_Exception
+from MAXENT3D_PID import pid, MAXENT3D_PID_Exception
 
 import time
 import pickle
@@ -7,11 +7,11 @@ from math import log2
 from sys import argv 
 
 ##########################################################################################
-# test_copy_gate.py -- part of Chicharro_PID (https://github.com/Abzinger/Chicharro_PID/)
+# test_copy_gate.py -- part of MAXENT3D_PID (https://github.com/Abzinger/MAXENT3D_PID/)
 #
 # Usage: python3 test_copy_gate.py l_x u_x step_x l_y u_y step_y l_z u_z step_z
 #
-# Role : compute the PID using Chicharro_PID of Copy gates which is
+# Role : compute the PID using MAXENT3D_PID of Copy gates which is
 #        Copy( X ,Y ,Z ) = (X,Y,Z) for different sizes of X, Y, and  Z;
 #
 # Where: |X| in range(l_x,u_x,step_x);
@@ -56,7 +56,7 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
                 #^ for x
 
                 # Compute PID 
-                print("Run Chicharro_PID.pid().")
+                print("Run MAXENT3D_PID.pid().")
                 tic = time.time()
                 returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=0, **parms)
                 toc = time.time()
@@ -144,11 +144,11 @@ def compute_copy_pid(l_X, u_X, step_X, l_Y, u_Y, step_Y, l_Z, u_Z, step_Z):
 #^ compute_copy_pid()
 
 def Main(sys_argv):
-    print("test_copy_gate.py -- part of Chicharro_PID (https://github.com/Abzinger/Chicharro_PID/)")
+    print("test_copy_gate.py -- part of MAXENT3D_PID (https://github.com/Abzinger/MAXENT3D_PID/)")
     if len(argv) != 10:
         msg ="""Usage: python3 test_copy_gate.py l_x u_x step_x l_y u_y step_y l_z u_z step_z
 
-Role : compute the PID using Chicharro_PID of Copy gates 
+Role : compute the PID using MAXENT3D_PID of Copy gates 
        which is Copy( X ,Y ,Z ) = (X,Y,Z) 
        for different sizes of X, Y, and  Z
 

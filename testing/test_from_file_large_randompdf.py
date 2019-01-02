@@ -1,5 +1,5 @@
 # test_form_file_large_randompdfs.py
-from Chicharro_PID import pid, Chicharro_pid_Exception
+from MAXENT3D_PID import pid, MAXENT3D_PID_Exception
 import time
 from random import random
 from sys import argv
@@ -7,13 +7,13 @@ import pickle
 import numpy as np
 from collections import defaultdict
 
-# test_from_file_randompdf.py -- part of Chicharro_pid (https://github.com/Abzinger/Chicharro_pid/)
+# test_from_file_randompdf.py -- part of MAXENT3D_PID (https://github.com/Abzinger/MAXENT3D_PID/)
 # Usage: python3 test_from_file_large_randompdfs.py t x y z # pdfs group
 
-# Role :   If group > 0: compute PID using BROJA_2Pid of random pdfs stored in 
+# Role :   If group > 0: compute PID using MAXENT3D_PID of random pdfs stored in 
 #                        the file randompdfs/randompdfs_t_x_y_z_pdfs_group.pkl
 #
-#          else        : compute PID using BROJA_2Pid of random pdfs stored in 
+#          else        : compute PID using MAXENT3D_PID of random pdfs stored in 
 #                        the file randompdfs/randompdfs_t_x_y_z_pdfs.pkl.
 
 
@@ -52,59 +52,59 @@ def compute_pid(nT, nX, nY, nZ, maxiter, group, maxgroup):
     #^ if reading distributions
     
     # Open files to store the results for boxploting later 
-    if group > 0:
+    # if group > 0:
 
-        # When ditributions are stored in multiple files then
-        # Open the temperory data which contains all the data of the previous group
-        # Read the list
-        # Then close the file and open it again for writing (not appending)
+    #     # When ditributions are stored in multiple files then
+    #     # Open the temperory data which contains all the data of the previous group
+    #     # Read the list
+    #     # Then close the file and open it again for writing (not appending)
 
-        if group == 1:
+    #     if group == 1:
 
-            # Time 
-            g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
-            data_time = []
+    #         # Time 
+    #         g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
+    #         data_time = []
 
-            # Error 
-            g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
+    #         # Error 
+    #         g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
 
-            data_error = []
-        elif group > 1 and group < maxgroup:
+    #         data_error = []
+    #     elif group > 1 and group < maxgroup:
 
-            # Time 
-            g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
-            data_time = pickle.load(g_t)
-            g_t.close()
-            g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
+    #         # Time 
+    #         g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
+    #         data_time = pickle.load(g_t)
+    #         g_t.close()
+    #         g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
 
-            # Error
-            g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
-            data_error = pickle.load(g_e)
-            g_e.close()
-            g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
+    #         # Error
+    #         g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
+    #         data_error = pickle.load(g_e)
+    #         g_e.close()
+    #         g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "wb")
 
-        elif group == maxgroup:
-            # Time 
-            g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
-            data_time = pickle.load(g_t)
-            g_t.close()
-            g_t = open("randompdfs/boxplots/data_boxplot_time.pkl", "ab")
+    #     elif group == maxgroup:
+    #         # Time 
+    #         g_t = open("randompdfs/boxplots/temp_boxplot_time_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
+    #         data_time = pickle.load(g_t)
+    #         g_t.close()
+    #         g_t = open("randompdfs/boxplots/data_boxplot_time.pkl", "ab")
 
-            # Error
-            g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
-            data_error = pickle.load(g_e)
-            g_e.close()
-            g_e = open("randompdfs/boxplots/data_boxplot_error.pkl", "ab")
-        #^ if opening file of index 1 or i or max_i   
+    #         # Error
+    #         g_e = open("randompdfs/boxplots/temp_boxplot_error_"+str(nT)+"_"+str(nX)+"_"+str(nY)+"_"+str(nZ)+"_"+str(maxiter)+".pkl", "rb")
+    #         data_error = pickle.load(g_e)
+    #         g_e.close()
+    #         g_e = open("randompdfs/boxplots/data_boxplot_error.pkl", "ab")
+    #     #^ if opening file of index 1 or i or max_i   
    
-    elif group == 0:
-        # If distributions are stored in a single file
-        # Open the main data file to append to it
-        g_t = open("randompdfs/boxplots/data_boxplot_time.pkl", "ab")
-        g_e = open("randompdfs/boxplots/data_boxplot_error.pkl", "ab")
-        g_x = open("randompdfs/boxplots/data_boxplot_UIX.pkl", "ab")
-        g_y = open("randompdfs/boxplots/data_boxplot_UIY.pkl", "ab")
-        g_z = open("randompdfs/boxplots/data_boxplot_UIZ.pkl", "ab")
+    # elif group == 0:
+    #     # If distributions are stored in a single file
+    #     # Open the main data file to append to it
+    #     g_t = open("randompdfs/boxplots/data_boxplot_time.pkl", "ab")
+    #     g_e = open("randompdfs/boxplots/data_boxplot_error.pkl", "ab")
+    #     g_x = open("randompdfs/boxplots/data_boxplot_UIX.pkl", "ab")
+    #     g_y = open("randompdfs/boxplots/data_boxplot_UIY.pkl", "ab")
+    #     g_z = open("randompdfs/boxplots/data_boxplot_UIZ.pkl", "ab")
         
     #^ if storing data 
 
@@ -122,7 +122,7 @@ def compute_pid(nT, nX, nY, nZ, maxiter, group, maxgroup):
         # read the distribution
         pdf = pickle.load(f)
 
-        # Compute PID using Chicharro_pid
+        # Compute PID using MAXENT3D_PID
         print("Run Chicharro_PID.pid().")
         itic = time.time()
         returndict = pid(pdf, cone_solver="ECOS", parallel='on', output=1, **parms)       
@@ -251,37 +251,37 @@ def compute_pid(nT, nX, nY, nZ, maxiter, group, maxgroup):
     print("# pdfs w/ negative PID", Npid)
 
     # Pickle the results
-    if group > 0 and group < maxgroup:
-        print("pickling results into randompdfs/boxplots/temp_boxplot_time_", nT,"_", nX,"_", nY,"_", nZ,"_",maxiter,".pkl ...")
-        pickle.dump(data_time, g_t)
-        g_t.close()
+    # if group > 0 and group < maxgroup:
+    #     print("pickling results into randompdfs/boxplots/temp_boxplot_time_", nT,"_", nX,"_", nY,"_", nZ,"_",maxiter,".pkl ...")
+    #     pickle.dump(data_time, g_t)
+    #     g_t.close()
         
-        print("pickling results into randompdfs/boxplots/temp_boxplot_error_", nT,"_", nX,"_", nY,"_", nZ,"_",maxiter,".pkl ...")
-        pickle.dump(data_error, g_e)
-        g_e.close()
-    elif group == maxgroup:
-        print("pickling results into randompdfs/boxplots/data_boxplot_time.pkl ...")
-        pickle.dump(data_time, g_t)
-        g_t.close()
-        print("pickling results into randompdfs/boxplots/data_boxplot_error.pkl ...")
-        pickle.dump(data_error, g_e)
-        g_e.close()
-    elif group == 0:
-        print("pickling results into randompdfs/boxplots/data_boxplot_time.pkl ...")
-        pickle.dump(Ti, g_t)
-        g_t.close()
-        print("pickling results into randompdfs/boxplots/data_boxplot_error.pkl ...")
-        pickle.dump(Err, g_e)
-        g_e.close()
-        print("pickling results into randompdfs/boxplots/data_boxplot_UIX.pkl ...")
-        pickle.dump(UIX, g_x)
-        g_x.close()
-        print("pickling results into randompdfs/boxplots/data_boxplot_UIY.pkl ...")
-        pickle.dump(UIY, g_y)
-        g_y.close()
-        print("pickling results into randompdfs/boxplots/data_boxplot_UIZ.pkl ...")
-        pickle.dump(UIZ, g_z)
-        g_z.close()
+    #     print("pickling results into randompdfs/boxplots/temp_boxplot_error_", nT,"_", nX,"_", nY,"_", nZ,"_",maxiter,".pkl ...")
+    #     pickle.dump(data_error, g_e)
+    #     g_e.close()
+    # elif group == maxgroup:
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_time.pkl ...")
+    #     pickle.dump(data_time, g_t)
+    #     g_t.close()
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_error.pkl ...")
+    #     pickle.dump(data_error, g_e)
+    #     g_e.close()
+    # elif group == 0:
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_time.pkl ...")
+    #     pickle.dump(Ti, g_t)
+    #     g_t.close()
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_error.pkl ...")
+    #     pickle.dump(Err, g_e)
+    #     g_e.close()
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_UIX.pkl ...")
+    #     pickle.dump(UIX, g_x)
+    #     g_x.close()
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_UIY.pkl ...")
+    #     pickle.dump(UIY, g_y)
+    #     g_y.close()
+    #     print("pickling results into randompdfs/boxplots/data_boxplot_UIZ.pkl ...")
+    #     pickle.dump(UIZ, g_z)
+    #     g_z.close()
         
     #^ if
 
@@ -290,16 +290,16 @@ def compute_pid(nT, nX, nY, nZ, maxiter, group, maxgroup):
 
 
 def Main(sys_argv):
-    print("\ntest_from_file_randompdfs.py -- part of Chicharro_pid (https://github.com/Abzinger/Chicharro_pid/)","\n")
+    print("\ntest_from_file_randompdfs.py -- part of MAXENT3D_PID (https://github.com/Abzinger/MAXENT3D_PID/)","\n")
     if len(sys_argv)!=8:
         msg="""Usage: python3 test_from_file_large_randompdfs.py t x y z Npdfs group maxgroup
 
-Role : If group > 0 : compute PID using BROJA_2Pid of random pdfs stored in 
+Role : If group > 0 : compute PID using MAXENT3D_PID of random pdfs stored in 
                       the file randompdfs/randompdfs_t_x_y_z_pdfs_group.pkl
                       (when pdfs w/ t, x, y, z, Npdfs parameters are stored 
                        in multiple files).
 
-       If group == 0: compute PID using BROJA_2Pid of random pdfs stored in 
+       If group == 0: compute PID using MAXENT3D_PID of random pdfs stored in 
                       the file randompdfs/randompdfs_t_x_y_z_pdfs.pkl (when 
                       pdfs w/ t, x, y, z, Npdfs parameters are stored in  a 
                       single file).
