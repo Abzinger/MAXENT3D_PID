@@ -1,0 +1,1000 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>TRIVARIATE_QP &mdash; MAXENT3D_PID 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> MAXENT3D_PID
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../MAXENT3D_PID.html">MAXENT3D_PID Package</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MAXENT3D_PID</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="index.html">Module code</a> &raquo;</li>
+        
+      <li>TRIVARIATE_QP</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for TRIVARIATE_QP</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;TRIVARIATE_QP.py -- Python Class</span>
+
+<span class="sd">Creates a Quadratic Program when one or more of the following</span>
+
+<span class="sd">Optimization problems:</span>
+
+<span class="sd">min - H(S|XYZ), min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)</span>
+
+<span class="sd">bails w/ duality gap &gt; 10^-6  </span>
+
+<span class="sd">(c) Abdullah Makkeh, Dirk Oliver Theis</span>
+<span class="sd">Permission to use and modify under Apache License version 2.0</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">ecos</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">sparse</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">linalg</span> <span class="k">as</span> <span class="n">LA</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="n">ln</span>  <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log2</span>
+
+<div class="viewcode-block" id="create_model"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_QP.create_model">[docs]</a><span class="k">def</span> <span class="nf">create_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_probs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Creates the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x</span>
+<span class="sd">           of the form </span>
+<span class="sd">                      min 1/2 x^TWx + f^T x</span>
+<span class="sd">                      subject to</span>
+
+<span class="sd">                            Ax  = b</span>
+<span class="sd">                            x &gt;= 0</span>
+
+<span class="sd">           The model can be written as SOCP:</span>
+<span class="sd">           min 1/2 t + f^T x</span>
+<span class="sd">           subject to</span>
+
+<span class="sd">                 Ax = b</span>
+<span class="sd">                 x &gt;= 0</span>
+<span class="sd">                (W^(1/2), t, 1)\in SOC</span>
+
+<span class="sd">           In ECOS </span>
+<span class="sd">               min c^T[t,x]</span>
+<span class="sd">               subject to</span>
+
+<span class="sd">                     Ax = b</span>
+<span class="sd">                     [-I, W^(1/2)]*[t,x]^T &lt;_{K} [0, 0, 0]</span>
+
+<span class="sd">           where K := R_+ . Q, c^T := [1/2,f^T]</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">             which_probs: list(int) - [1]  if min_{Delta_p}H(T|X,Y,Z) failed</span>
+<span class="sd">                                      [12] if min_{Delta_p}H(T|X,Y) failed</span>
+<span class="sd">                                      [12] if min_{Delta_p}H(T|X,Z) failed</span>
+<span class="sd">                                      [12] if min_{Delta_p}H(T|Y,Z) failed</span>
+<span class="sd">                                      [1,12]  if min_{Delta_p}H(T|X,Y,Z) and </span>
+
+<span class="sd">                                                 min_{Delta_p}H(T|X,Y) failed</span>
+
+<span class="sd">                                      [1,13]  if min_{Delta_p}H(T|X,Y,Z) and </span>
+<span class="sd">                                                 min_{Delta_p}H(T|X,Z) failed</span>
+
+<span class="sd">                                      [1,23]  if min_{Delta_p}H(T|X,Y,Z) and </span>
+<span class="sd">                                                 min_{Delta_p}H(T|Y,Z) failed</span>
+
+<span class="sd">                                      [12,13] if min_{Delta_p}H(T|X,Y) and </span>
+<span class="sd">                                                 min_{Delta_p}H(T|X,Z) failed</span>
+
+<span class="sd">                                      [12,23] if min_{Delta_p}H(T|X,Y) and </span>
+<span class="sd">                                                 min_{Delta_p}H(T|Y,Z) failed</span>
+
+<span class="sd">                                      [13,23] if min_{Delta_p}H(T|X,Z) and </span>
+<span class="sd">                                                 min_{Delta_p}H(T|Y,Z) failed</span>
+
+<span class="sd">                                      [1,12,13]  if min_{Delta_p}H(T|X,Y,Z),</span>
+<span class="sd">                                                    min_{Delta_p}H(T|X,Y), and </span>
+<span class="sd">                                                    min_{Delta_p}H(T|X,Z) failed</span>
+
+<span class="sd">                                      [1,12,23]  if min_{Delta_p}H(T|X,Y,Z),</span>
+<span class="sd">                                                    min_{Delta_p}H(T|X,Y), and </span>
+<span class="sd">                                                    min_{Delta_p}H(T|Y,Z) failed</span>
+
+<span class="sd">                                      [1,13,23]  if min_{Delta_p}H(T|X,Y,Z),</span>
+<span class="sd">                                                    min_{Delta_p}H(T|X,Z), and </span>
+<span class="sd">                                                    min_{Delta_p}H(T|Y,Z) failed</span>
+
+<span class="sd">                                      [12,13,23] if min_{Delta_p}H(T|X,Y),</span>
+<span class="sd">                                                    min_{Delta_p}H(T|X,Z), and </span>
+<span class="sd">                                                    min_{Delta_p}H(T|Y,Z) failed</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            numpy.array - objective function weights</span>
+<span class="sd">            scipy.sparse.csc_matrix - matrix of soc and nonnegative </span>
+<span class="sd">            inequalities</span>
+
+<span class="sd">            numpy.array - L.H.S. of inequalities </span>
+<span class="sd">            dictionary -  cones to be used </span>
+
+<span class="sd">                keys: string - cone type (soc or nonegative)</span>
+<span class="sd">                values: int - number of cones</span>
+
+<span class="sd">            scipy.sparse.csc_matrix - Matrix of identity equations </span>
+<span class="sd">            numpy.array - L.H.S. of equalities </span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">or</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">12</span><span class="p">]</span> <span class="ow">or</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">13</span><span class="p">]</span> <span class="ow">or</span> <span class="n">which_probs</span> <span class="o">==</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">23</span><span class="p">]</span> <span class="ow">or</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">13</span><span class="p">]</span> <span class="ow">or</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">23</span><span class="p">]</span> <span class="ow">or</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">23</span><span class="p">]:</span>
+
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -CI_c*CI_e, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIX_c*UIX_e, -UIY_c*UIY_e, -UIZ_c*UIZ_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIXZ_c*UIXZ_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, CI, SI,</span>
+        <span class="c1">#        UIX, UIY, UIZ,</span>
+        <span class="c1">#        UIXY, UIXZ, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">CI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span> 
+        
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1,1,1,1,1],</span>
+        <span class="c1">#       [0,0,1,1,0,0,1,1,0],</span>
+        <span class="c1">#       [0,0,1,0,1,0,1,0,1],</span>
+        <span class="c1">#       [0,0,1,0,0,1,0,1,1] ]</span>
+        
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">9</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0,0,0,0,0], # CI &gt;= 0</span>
+        <span class="c1">#        [0,0,1,0,0,0,0,0,0], # SI &gt;= 0</span>
+        <span class="c1">#        [0,0,0,1,0,0,0,0,0], # UIX &gt;= 0</span>
+        <span class="c1">#        [0,0,0,0,1,0,0,0,0], # UIY &gt;= 0</span>
+        <span class="c1">#        [0,0,0,0,0,1,0,0,0], # UIZ &gt;= 0</span>
+        <span class="c1">#        [0,0,0,0,0,0,1,0,0], # UIXY &gt;= 0</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,1,0], # UIXZ &gt;= 0</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,0,1], # UIYZ &gt;= 0</span>
+        <span class="c1">#        [0,1,0,0,0,0,0,0,0], # CI &gt;= CI_e</span>
+        <span class="c1">#        [0,1,0,0,0,0,0,0,0], # SI &lt;= SI_e</span>
+        <span class="c1">#        [0,0,1,0,0,0,0,0,0], # UIX &lt;= UIX_e </span>
+        <span class="c1">#        [0,0,0,1,0,0,0,0,0], # UIY &lt;= UIY_e</span>
+        <span class="c1">#        [0,0,0,0,1,0,0,0,0], # UIZ &lt;= UIZ_e</span>
+        <span class="c1">#        [0,0,0,0,0,1,0,0,0], # UIXY &gt;= UIXY_e</span>
+        <span class="c1">#        [0,0,0,0,0,0,1,0,0], # UIXZ &gt;= UIXZ_e</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,1,0], # UIYZ &gt;= UIYZ_e</span>
+        <span class="c1">#        [1,0,0,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,*,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,0,*] ]</span>
+        
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span>
+                 <span class="mi">8</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">14</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span>
+                 <span class="mi">16</span><span class="p">,</span>
+                 <span class="mi">17</span><span class="p">,</span><span class="mi">18</span><span class="p">,</span>
+                 <span class="mi">19</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="mi">21</span><span class="p">,</span>
+                 <span class="mi">22</span><span class="p">,</span><span class="mi">23</span><span class="p">,</span><span class="mi">24</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span>
+                 <span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">CI_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span><span class="mi">9</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">16</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">9</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">25</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">9</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">11</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">12</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">13</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">14</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">15</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|XYZ)]</span>
+ 
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">12</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIZ_c*UIZ_e,</span>
+        <span class="c1">#        -UIXZ_c*UIXZ_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#           UIZ,</span>
+        <span class="c1">#           UIXZ, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span> 
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1],</span>
+        <span class="c1">#       [0,1,0,1,0],</span>
+        <span class="c1">#       [0,1,0,0,1],</span>
+        <span class="c1">#       [0,1,1,1,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,*], ]</span>
+        
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span>
+                 <span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">9</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|XY)]</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">13</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIY_c*UIY_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#        UIY,</span>
+        <span class="c1">#        UIXY, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span> 
+
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1],</span>
+        <span class="c1">#       [0,1,0,1,0],</span>
+        <span class="c1">#       [0,1,1,1,1],</span>
+        <span class="c1">#       [0,1,0,0,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,*], ]</span>
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span>
+                 <span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">9</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|XZ)]</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">23</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIX_c*UIX_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIXZ_c*UIXZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#        UIX,</span>
+        <span class="c1">#        UIXY, UIXZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">])</span> 
+
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1],</span>
+        <span class="c1">#       [0,1,1,1,1],</span>
+        <span class="c1">#       [0,1,0,1,0],</span>
+        <span class="c1">#       [0,1,0,0,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> 
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,*], ]</span>
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span>
+                 <span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span><span class="mi">5</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">9</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|YZ)]</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIY_c*UIY_e, -UIZ_c*UIZ_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIXZ_c*UIXZ_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#        UIY, UIZ,</span>
+        <span class="c1">#        UIXY, UIXZ, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span> 
+
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1,1,1],</span>
+        <span class="c1">#       [0,1,0,0,1,1,0],</span>
+        <span class="c1">#       [0,1,1,0,1,0,1],</span>
+        <span class="c1">#       [0,1,0,1,0,1,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> 
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">7</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,*], ]</span>
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span>
+                 <span class="mi">8</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span>
+                 <span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/2dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span><span class="mi">7</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">6</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">7</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">13</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|XY)] and [min - H(S|XZ)]</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">12</span><span class="p">,</span><span class="mi">23</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIX_c*UIX_e, -UIZ_c*UIZ_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIXZ_c*UIXZ_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#        UIX, UIZ,</span>
+        <span class="c1">#        UIXY, UIXZ, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span> 
+
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1,1,1],</span>
+        <span class="c1">#       [0,1,1,0,1,1,0],</span>
+        <span class="c1">#       [0,1,0,0,1,0,1],</span>
+        <span class="c1">#       [0,1,0,1,0,1,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> 
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">7</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,*], ]</span>
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span>
+                 <span class="mi">8</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span>
+                 <span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/2dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span><span class="mi">7</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">6</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">7</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">13</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|XY)] and [min - H(S|YZ)]</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">13</span><span class="p">,</span><span class="mi">23</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIX_c*UIX_e, -UIY_c*UIY_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIXZ_c*UIXZ_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#        UIX, UIY,</span>
+        <span class="c1">#        UIXY, UIXZ, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span>
+        
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1,1,1],</span>
+        <span class="c1">#       [0,1,1,0,1,1,0],</span>
+        <span class="c1">#       [0,1,0,1,1,0,1],</span>
+        <span class="c1">#       [0,1,0,0,0,1,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> 
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">7</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,*], ]</span>
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span>
+                 <span class="mi">8</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span>
+                 <span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span>
+                 <span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/2dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span><span class="mi">7</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">6</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">7</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">13</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+    <span class="c1">#^ if [min - H(S|XZ)] and [min - H(S|YZ)]</span>
+
+    <span class="k">if</span> <span class="n">which_probs</span> <span class="o">==</span> <span class="p">[</span><span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">23</span><span class="p">]:</span>
+        <span class="c1"># Construct c </span>
+        <span class="c1"># c^T = [1/2, -SI_c*SI_e,</span>
+        <span class="c1">#        -UIX_c*UIX_e, -UIY_c*UIY_e, -UIZ_c*UIZ_e,</span>
+        <span class="c1">#        -UIXY_c*UIXY_e, -UIXZ_c*UIXZ_e, -UIYZ_c*UIYZ_e]</span>
+        <span class="c1"># x   = [t, SI,</span>
+        <span class="c1">#        UIX, UIY, UIZ,</span>
+        <span class="c1">#        UIXY, UIXZ, UIYZ]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_e</span><span class="p">,</span>
+                           <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_e</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_e</span><span class="p">])</span> 
+
+        <span class="c1"># Construct A</span>
+        <span class="c1"># A = [ [0,1,1,1,1,1,1,1],</span>
+        <span class="c1">#       [0,1,1,0,0,1,1,0],</span>
+        <span class="c1">#       [0,1,0,1,0,1,0,1],</span>
+        <span class="c1">#       [0,1,0,0,1,0,1,1] ]</span>
+        <span class="n">Eqn</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+               <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+               <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="n">Var</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span>
+               <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">,</span> <span class="o">+</span><span class="mf">1.</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">8</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct b</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">MI</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">CI_e</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIX</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIY</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">MIZ</span><span class="p">])</span>
+
+        <span class="c1"># Construct G</span>
+        <span class="c1"># -G = [ [0,1,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,1,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,1,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,1,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,1,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,1,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,1],</span>
+        <span class="c1">#        [1,0,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,*,0,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,*,0,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,*,0,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,*,0,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,*,0,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,*,0],</span>
+        <span class="c1">#        [0,0,0,0,0,0,0,*], ]</span>
+
+        <span class="c1"># Construct W^(1\2) </span>
+        <span class="c1"># W^(1/2) = w^(1\2)I of dim = 8 where w is the confidence of the nonconvergent problem        </span>
+        <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span>
+                 <span class="mi">7</span><span class="p">,</span>
+                 <span class="mi">8</span><span class="p">,</span>
+                 <span class="mi">9</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span>
+                 <span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">14</span><span class="p">]</span>
+        <span class="n">Var</span>   <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span>
+                 <span class="mi">0</span><span class="p">,</span>
+                 <span class="mi">1</span><span class="p">,</span>
+                 <span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span>
+                 <span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">]</span>
+        <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">SI_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIX_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIZ_c</span><span class="p">,</span>
+                 <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXY_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIXZ_c</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">UIYZ_c</span><span class="p">]</span> <span class="c1"># confidence values 1/2dual_gap</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span><span class="mi">8</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="c1"># Construct K </span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">7</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+
+        <span class="c1"># Construct h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="mi">15</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span></div>
+    <span class="c1">#^ if [min - H(S|XY)], [min - H(S|XZ)], and [min - H(S|YZ)]</span>
+
+    
+<span class="c1">#^ create_model()</span>
+
+<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_QP.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Solves the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            c: numpy.array - objective function weights</span>
+<span class="sd">            G: scipy.sparse.csc_matrix - matrix of soc and nonnegative </span>
+<span class="sd">            inequalities</span>
+<span class="sd">            h: numpy.array - L.H.S. of inequalities </span>
+<span class="sd">            dims: dictionary -  cones to be used </span>
+
+<span class="sd">                    keys: string - cone type (soc or nonegative)</span>
+<span class="sd">                    values: int - number of cones</span>
+
+<span class="sd">            A: scipy.sparse.csc_matrix - Matrix of identity equations </span>
+<span class="sd">            b: numpy.array - L.H.S. of equalities </span>
+<span class="sd">            output: int - print different outputs based on (int) to console</span>
+<span class="sd"> </span>
+<span class="sd">       Returns: </span>
+<span class="sd">            sol_tx:     numpy.array - primal optimal solution</span>
+<span class="sd">            sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)</span>
+<span class="sd">            sol_lambda: numpy.array - equalities dual optimal solution</span>
+<span class="sd">            sol_mu:     numpy.array - inequalities dual  optimal solution   </span>
+<span class="sd">            sol_info:   dictionary - Brief stats of the optimization from ECOS</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># print(self.verbose)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ecos_kwargs</span><span class="p">[</span><span class="s2">&quot;verbose&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span>
+    <span class="c1">#^ if</span>
+    
+    <span class="n">solution</span> <span class="o">=</span> <span class="n">ecos</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ecos_kwargs</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s1">&#39;x&#39;</span> <span class="ow">in</span> <span class="n">solution</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_tx</span>     <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_slack</span>  <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_lambda</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_mu</span>     <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;z&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_info</span>   <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;info&#39;</span><span class="p">]</span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_QP.solve(): Time to solve the Quadratic Program of Least Squares&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span> 
+        <span class="k">return</span> <span class="s2">&quot;success&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_tx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_slack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_lambda</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_mu</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_info</span>
+    <span class="k">else</span><span class="p">:</span> <span class="c1"># &quot;x&quot; not in dict solution</span>
+        <span class="k">return</span> <span class="s2">&quot;TRIVARIATE_QP.solve(): x not in dict solution -- No Solution Found!!!&quot;</span></div>
+    <span class="c1">#^ if/esle</span>
+<span class="c1">#^ solve()</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Abdullah Makkeh
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

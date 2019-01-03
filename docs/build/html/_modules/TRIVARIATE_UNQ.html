@@ -1,0 +1,1398 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>TRIVARIATE_UNQ &mdash; MAXENT3D_PID 0.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> MAXENT3D_PID
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../MAXENT3D_PID.html">MAXENT3D_PID Package</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MAXENT3D_PID</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="index.html">Module code</a> &raquo;</li>
+        
+      <li>TRIVARIATE_UNQ</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for TRIVARIATE_UNQ</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;TRIVARIATE_UNQ.py -- Python Class</span>
+
+<span class="sd">Creates the optimization problems needed to compute unique information</span>
+
+<span class="sd">The optimization problems are:</span>
+
+<span class="sd">min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)</span>
+
+<span class="sd">(c) Abdullah Makkeh, Dirk Oliver Theis</span>
+<span class="sd">Permission to use and modify under Apache License version 2.0</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">ecos</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">sparse</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">linalg</span> <span class="k">as</span> <span class="n">LA</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="n">ln</span>  <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log2</span>
+
+<div class="viewcode-block" id="core_initialization"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.core_initialization">[docs]</a><span class="k">def</span> <span class="nf">core_initialization</span><span class="p">(</span><span class="n">_S</span><span class="p">,</span> <span class="n">X_1</span><span class="p">,</span> <span class="n">X_2</span><span class="p">,</span> <span class="n">b_sx1</span><span class="p">,</span> <span class="n">b_sx2</span><span class="p">,</span> <span class="n">idx_of</span><span class="p">,</span> <span class="n">of_idx</span><span class="p">):</span>
+    <span class="c1"># (c) Abdullah Makkeh, Dirk Oliver Theis</span>
+    <span class="c1"># Permission to use and modify under Apache License version 2.0</span>
+
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">_S</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">x1</span> <span class="ow">in</span> <span class="n">X_1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x1</span><span class="p">)</span> <span class="ow">in</span> <span class="n">b_sx1</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">x2</span> <span class="ow">in</span> <span class="n">X_2</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x2</span><span class="p">)</span> <span class="ow">in</span> <span class="n">b_sx2</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                        <span class="n">idx_of</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x1</span><span class="p">,</span><span class="n">x2</span><span class="p">)</span> <span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">of_idx</span><span class="p">)</span>
+                        <span class="n">of_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x1</span><span class="p">,</span><span class="n">x2</span><span class="p">)</span> <span class="p">)</span>
+                    <span class="c1">#^ if sx2</span>
+                <span class="c1">#^ for x2</span>
+            <span class="c1">#^if sx1</span>
+        <span class="c1">#^ for x1</span>
+    <span class="c1">#^ for s</span>
+
+    <span class="k">return</span> <span class="mi">0</span></div>
+<span class="c1">#^ core_initialization()</span>
+
+
+<div class="viewcode-block" id="initialization"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.initialization">[docs]</a><span class="k">def</span> <span class="nf">initialization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_sources</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initialize the data for the triplets (T,U,V) where U,V in {X,Y,Z}</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">             which_sources: [1,2] if sources are X and Y </span>
+<span class="sd">                            [1,3] if sources are X and Z</span>
+<span class="sd">                            [2,3] if sources are Y and Z</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            (if [1,2] u,v=x,y|if [1,3] u,v=x,z|if [2,3] u,v=y,z|)</span>
+<span class="sd">            dictionary</span>
+
+<span class="sd">              keys: (t,u,v)</span>
+<span class="sd">              values: their indices </span>
+
+<span class="sd">            list of (t,u,v)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">idx_of_trip</span>  <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">trip_of_idx</span>  <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+        <span class="n">core_initialization</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">,</span> <span class="n">idx_of_trip</span><span class="p">,</span> <span class="n">trip_of_idx</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="n">core_initialization</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="p">,</span> <span class="n">idx_of_trip</span><span class="p">,</span> <span class="n">trip_of_idx</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="n">core_initialization</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="p">,</span> <span class="n">idx_of_trip</span><span class="p">,</span> <span class="n">trip_of_idx</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.initialization(): which_sources takes the values [1,2], [1,3], or [2,3]&quot;</span><span class="p">)</span>
+        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">idx_of_trip</span><span class="p">,</span> <span class="n">trip_of_idx</span></div>
+<span class="c1">#^ initialization()</span>
+
+<span class="c1"># ECOS&#39;s exp cone: (r,p,w)     w/   w&gt;0  &amp;  exp(r/w) ≤ p/w</span>
+<span class="c1"># Variables here:  (r,p,w)U(q)</span>
+<span class="c1"># Translation:     (0,1,2,3)   w/   2&gt;0  &amp;  0/2      ≤ ln(1/2)</span>
+<div class="viewcode-block" id="sr_vidx"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.sr_vidx">[docs]</a><span class="k">def</span> <span class="nf">sr_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes the index of the optimal r (r_vars) in the</span>
+<span class="sd">           optimal solution of the Exponential Cone Programming</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">             i: int</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="mi">3</span><span class="o">*</span><span class="n">i</span></div>
+<div class="viewcode-block" id="sp_vidx"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.sp_vidx">[docs]</a><span class="k">def</span> <span class="nf">sp_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes the index of the optimal (p_vars) in the</span>
+<span class="sd">           optimal solution of the Exponential Cone Programming</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">             i: int</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">return</span> <span class="mi">3</span><span class="o">*</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span></div>
+<div class="viewcode-block" id="sw_vidx"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.sw_vidx">[docs]</a><span class="k">def</span> <span class="nf">sw_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes the index of the optimal (w_vars) in the</span>
+<span class="sd">           optimal solution of the Exponential Cone Programming</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">             i: int</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">return</span> <span class="mi">3</span><span class="o">*</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span></div>
+<div class="viewcode-block" id="sq_vidx"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.sq_vidx">[docs]</a><span class="k">def</span> <span class="nf">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes the index of the optimal distribution (q_vars) in the</span>
+<span class="sd">           optimal solution of the Exponential Cone Programming</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">             i: int</span>
+<span class="sd">             ltrip_of_idx: int - length of triplet t,u,v </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="k">return</span> <span class="mi">3</span><span class="o">*</span><span class="n">ltrip_of_idx</span> <span class="o">+</span> <span class="n">i</span></div>
+
+<div class="viewcode-block" id="create_model"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.create_model">[docs]</a><span class="k">def</span> <span class="nf">create_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_sources</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Creates the exponential Cone Program min_{q in Delta_d}H(T|U,V)</span>
+<span class="sd">           of the form </span>
+<span class="sd">              min. c&#39;x</span>
+<span class="sd">              s.t.</span>
+<span class="sd">              Ax = b</span>
+<span class="sd">              Gx &lt;=_K h</span>
+
+<span class="sd">           where </span>
+<span class="sd">           x = (r,p,q)</span>
+<span class="sd">           K represents a vector representing cones (K_1, K_2)</span>
+<span class="sd">           such that K_1 is a vector repesenting exponential cones </span>
+<span class="sd">           K_2 is a vector repesenting nonnegative cones </span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">             which_sources: [1,2] if sources are X and Y </span>
+<span class="sd">                            [1,3] if sources are X and Z</span>
+<span class="sd">                            [2,3] if sources are Y and Z</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            numpy.array - objective function weights</span>
+<span class="sd">            scipy.sparse.csc_matrix - matrix of exponential and nonnegative </span>
+<span class="sd">            inequalities</span>
+<span class="sd">            </span>
+<span class="sd">            numpy.array - L.H.S. of inequalities </span>
+<span class="sd">            dictionary -  cones to be used </span>
+
+<span class="sd">                keys: string - cone type (exponential or nonegative)</span>
+<span class="sd">                values: int - number of cones</span>
+
+<span class="sd">            scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and </span>
+<span class="sd">            q-p coupling equations </span>
+
+<span class="sd">            numpy.array - L.H.S. of equalities </span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Initialize which sources for the model</span>
+    <span class="n">tic_all</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="n">idx_of_trip</span><span class="p">,</span><span class="n">trip_of_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialization</span><span class="p">(</span><span class="n">which_sources</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">)</span>
+    <span class="n">ltrip_of_idx</span> <span class="o">=</span> <span class="n">n</span>
+    <span class="n">n_vars</span> <span class="o">=</span> <span class="mi">3</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">)</span>
+    <span class="n">n_cons</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="n">m</span>
+    
+    <span class="c1"># Create the equations: Ax = b</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_cons</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    
+    <span class="n">Eqn</span>   <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Var</span>   <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># The q-w coupling eqautions:</span>
+    <span class="c1">#         if Sources = X,Y  q_{stv*} - w_{stv} = 0</span>
+    <span class="c1">#         if Sources = X,Z  q_{st*v} - w_{stv} = 0</span>
+    <span class="c1">#         if Sources = Y,Z  q_{s*tv} - w_{stv} = 0</span>
+    <span class="n">tic_w</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+        <span class="n">eqn</span>   <span class="o">=</span> <span class="n">i</span>
+        <span class="n">w_var</span> <span class="o">=</span> <span class="n">sw_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">Eqn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">eqn</span> <span class="p">)</span>
+        <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">w_var</span> <span class="p">)</span>
+        <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="mf">1.</span> <span class="p">)</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="o">=</span> <span class="n">stv</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">,</span><span class="n">u</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> 
+                    <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">,</span><span class="n">u</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+                    <span class="n">Eqn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">eqn</span> <span class="p">)</span>
+                    <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">q_var</span> <span class="p">)</span>
+                    <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">+</span><span class="mf">1.</span> <span class="p">)</span>
+                <span class="c1">#^ if q_{stv*}</span>
+            <span class="c1">#^ loop *xy*                </span>
+        <span class="c1">#^ if SXY</span>
+        <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>  
+            <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">Y</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">u</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> 
+                    <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">u</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+                    <span class="n">Eqn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">eqn</span> <span class="p">)</span>
+                    <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">q_var</span> <span class="p">)</span>
+                    <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">+</span><span class="mf">1.</span> <span class="p">)</span>
+                <span class="c1">#^ if q_{st*v}</span>
+            <span class="c1">#^ loop *x*z                </span>
+        <span class="c1">#^ if SXZ</span>
+        <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">u</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> 
+                    <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">u</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+                    <span class="n">Eqn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">eqn</span> <span class="p">)</span>
+                    <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">q_var</span> <span class="p">)</span>
+                    <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">+</span><span class="mf">1.</span> <span class="p">)</span>
+                <span class="c1">#^ if q_{s*tv}</span>
+            <span class="c1">#^ loop **yz                </span>
+        <span class="c1">#^if SYZ</span>
+    <span class="c1">#^ for stv</span>
+    <span class="n">toc_w</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create q-w coupling equations [min -H(S|X,Y)]:&quot;</span><span class="p">,</span> <span class="n">toc_w</span> <span class="o">-</span> <span class="n">tic_w</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create q-w coupling equations [min -H(S|X,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_w</span> <span class="o">-</span> <span class="n">tic_w</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create q-w coupling equations [min -H(S|Y,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_w</span> <span class="o">-</span> <span class="n">tic_w</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+
+    <span class="c1"># running number</span>
+    <span class="n">eqn</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">)</span>
+    
+    <span class="c1"># The q-p coupling equations:</span>
+    <span class="c1">#         if Sources = X,Y  q_{*tv*} - p_{stv} = 0</span>
+    <span class="c1">#         if Sources = X,Z  q_{*t*v} - p_{stv} = 0</span>
+    <span class="c1">#         if Sources = Y,Z  q_{**tv} - p_{stv} = 0</span>
+    <span class="c1"># ( Expensive step )</span>
+    <span class="n">tic_p</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+    <span class="n">Eqn_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="n">Eqn_dict_num</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">Eqn_dict_acc</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Var_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Coeff_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">eqn</span>     <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eqn</span>
+        <span class="c1">#^ for </span>
+            
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">utvw</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+            <span class="n">u</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">,</span><span class="n">w</span> <span class="o">=</span> <span class="n">utvw</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_xy</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">Eqn_dict_num</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">Coeff_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+                <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">,</span><span class="n">w</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+                <span class="n">Var_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_var</span><span class="p">)</span>
+            <span class="c1">#^ if *xy* exists</span>
+        <span class="c1">#^ for utvw</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]]</span><span class="o">*</span><span class="n">Eqn_dict_num</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span>
+            <span class="n">Eqn_dict_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">temp</span>
+        <span class="c1"># for </span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">eqn</span>     <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eqn</span>
+        <span class="c1">#^ for</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">utwv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+            <span class="n">u</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">w</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">utwv</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_xz</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">Eqn_dict_num</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">Coeff_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+                <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">w</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+                <span class="n">Var_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_var</span><span class="p">)</span>
+            <span class="c1">#^ if *x*z exists</span>
+        <span class="c1">#^ for utwv</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]]</span><span class="o">*</span><span class="n">Eqn_dict_num</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span>
+            <span class="n">Eqn_dict_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">temp</span>
+        <span class="c1"># for</span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">eqn</span>     <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eqn</span>
+        <span class="c1">#^ for</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">uwtv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+            <span class="n">u</span><span class="p">,</span><span class="n">w</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">uwtv</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_yz</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">Eqn_dict_num</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">Coeff_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+                <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span><span class="n">w</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+                <span class="n">Var_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_var</span><span class="p">)</span>
+            <span class="c1">#^ if **yz exists</span>
+        <span class="c1">#^ for utwv</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]]</span><span class="o">*</span><span class="n">Eqn_dict_num</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span>
+            <span class="n">Eqn_dict_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">temp</span>
+        <span class="c1"># for</span>
+    <span class="c1">#^ if which sources</span>
+    
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span> <span class="o">=</span> <span class="n">stv</span>
+            <span class="n">p_var</span>   <span class="o">=</span> <span class="n">sp_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">Eqn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">Eqn_dict</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> <span class="p">)</span>
+            <span class="n">Eqn</span> <span class="o">+=</span> <span class="n">Eqn_dict_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span>
+            <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">p_var</span> <span class="p">)</span>
+            <span class="n">Var</span> <span class="o">+=</span> <span class="n">Var_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span>
+            <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="mf">1.</span> <span class="p">)</span>
+            <span class="n">Coeff</span> <span class="o">+=</span> <span class="n">Coeff_dict</span><span class="p">[(</span><span class="n">t</span><span class="p">,</span><span class="n">v</span><span class="p">)]</span> 
+    <span class="c1">#^ for stv</span>
+    <span class="n">toc_p</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create q-t coupling equations [min -H(S|X,Y)]:&quot;</span><span class="p">,</span> <span class="n">toc_p</span> <span class="o">-</span> <span class="n">tic_p</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create q-t coupling equations [min -H(S|X,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_p</span> <span class="o">-</span> <span class="n">tic_p</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create q-t coupling equations [min -H(S|Y,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_p</span> <span class="o">-</span> <span class="n">tic_p</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Create the marginal constraints</span>
+    
+    <span class="c1"># The sx marginals q_{sx**} = b^x_{sx}</span>
+    <span class="n">tic_m</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="n">Eqn_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="n">Eqn_marg_num</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">Eqn_marg_acc</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Var_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Coeff_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">sx</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)</span> <span class="o">=</span> <span class="n">sx</span>
+        <span class="n">eqn</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eqn</span>
+    <span class="c1">#^ for sx exists</span>
+        
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+            <span class="n">Var_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_var</span><span class="p">)</span>
+            <span class="n">Coeff_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+            <span class="n">Eqn_marg_num</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">[</span> <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+        <span class="c1">#^ if sx exits</span>
+    <span class="c1"># for sxyz</span>
+    
+    <span class="k">for</span> <span class="n">sx</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)</span> <span class="o">=</span> <span class="n">sx</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span> <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="p">]</span><span class="o">*</span><span class="n">Eqn_marg_num</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+        <span class="n">Eqn_marg_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">temp</span>
+    <span class="c1">#^ for  sx exists    </span>
+    
+    <span class="k">for</span> <span class="n">sx</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)</span> <span class="o">=</span> <span class="n">sx</span>
+        <span class="n">Eqn</span> <span class="o">+=</span> <span class="n">Eqn_marg_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+        <span class="n">Var</span> <span class="o">+=</span> <span class="n">Var_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+        <span class="n">Coeff</span> <span class="o">+=</span> <span class="n">Coeff_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+    <span class="c1">#^ for sx exists</span>
+
+    <span class="c1"># The sy marginals q_{s*y*} = b^y_{sy}</span>
+
+    <span class="n">Eqn_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="n">Eqn_marg_num</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">Eqn_marg_acc</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Var_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Coeff_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">sy</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="o">=</span> <span class="n">sy</span>
+        <span class="n">eqn</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eqn</span>
+    <span class="c1">#^ for sy exists</span>
+        
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+            <span class="n">Var_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_var</span><span class="p">)</span>
+            <span class="n">Coeff_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+            <span class="n">Eqn_marg_num</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">[</span> <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+        <span class="c1">#^ if sy exits</span>
+    <span class="c1"># for sxyz</span>
+    
+    <span class="k">for</span> <span class="n">sy</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="o">=</span> <span class="n">sy</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span> <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="p">]</span><span class="o">*</span><span class="n">Eqn_marg_num</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+        <span class="n">Eqn_marg_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">temp</span>
+    <span class="c1">#^ for  sy exists   </span>
+        
+    <span class="k">for</span> <span class="n">sy</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="o">=</span> <span class="n">sy</span>
+        <span class="n">Eqn</span> <span class="o">+=</span> <span class="n">Eqn_marg_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+        <span class="n">Var</span> <span class="o">+=</span> <span class="n">Var_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+        <span class="n">Coeff</span> <span class="o">+=</span> <span class="n">Coeff_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+    <span class="c1">#^ for sy exists</span>
+
+    <span class="c1"># The sz marginals q_{s**z} = b^z_{sz}</span>
+    <span class="n">Eqn_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="n">Eqn_marg_num</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">Eqn_marg_acc</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Var_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">Coeff_marg</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">sz</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="o">=</span> <span class="n">sz</span>
+        <span class="n">eqn</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">=</span> <span class="n">eqn</span>
+    <span class="c1">#^ for sz exists</span>
+    
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="p">[</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="p">],</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+            <span class="n">Var_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q_var</span><span class="p">)</span>
+            <span class="n">Coeff_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+            <span class="n">Eqn_marg_num</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">[</span> <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+        <span class="c1">#^ if sz exits</span>
+    <span class="c1"># for sxyz</span>
+    
+    <span class="k">for</span> <span class="n">sz</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="o">=</span> <span class="n">sz</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span> <span class="n">Eqn_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span><span class="o">*</span><span class="n">Eqn_marg_num</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+        <span class="n">Eqn_marg_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">temp</span>
+    <span class="c1">#^ for  sz exists    </span>
+        
+    <span class="k">for</span> <span class="n">sz</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="o">=</span> <span class="n">sz</span>
+        <span class="n">Eqn</span> <span class="o">+=</span> <span class="n">Eqn_marg_acc</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+        <span class="n">Var</span> <span class="o">+=</span> <span class="n">Var_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+        <span class="n">Coeff</span> <span class="o">+=</span> <span class="n">Coeff_marg</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+    <span class="c1">#^ for sz exists</span>
+    <span class="n">toc_m</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create marginal equations [min -H(S|X,Y)]:&quot;</span><span class="p">,</span> <span class="n">toc_m</span> <span class="o">-</span> <span class="n">tic_m</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create marginal equations [min -H(S|X,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_m</span> <span class="o">-</span> <span class="n">tic_m</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create marginal equations [min -H(S|Y,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_m</span> <span class="o">-</span> <span class="n">tic_m</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Store the constraints in A</span>
+    <span class="n">tic_rest</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Eqn</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_cons</span><span class="p">,</span><span class="n">n_vars</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    
+    <span class="c1"># Generalized ieqs: gen.nneg of the variable triple (r_i,w_i,p_i), i=0,dots,n-1: </span>
+    <span class="n">Ieq</span>   <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Var</span>   <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">Coeff</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># Adding q_{s,x,y,z} &gt;= 0 or q_{s,x,y,z} is free variable</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">q_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)</span>
+        <span class="n">Ieq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">Ieq</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">q_var</span> <span class="p">)</span>
+        <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="mf">1.</span> <span class="p">)</span>
+    <span class="c1">#^ for sxyz</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+        <span class="n">r_var</span> <span class="o">=</span> <span class="n">sr_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">w_var</span> <span class="o">=</span> <span class="n">sw_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">p_var</span> <span class="o">=</span> <span class="n">sp_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        
+        <span class="n">Ieq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">Ieq</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">r_var</span> <span class="p">)</span>
+        <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="mf">1.</span> <span class="p">)</span>
+        
+        <span class="n">Ieq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">Ieq</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">p_var</span> <span class="p">)</span>
+        <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="mf">1.</span> <span class="p">)</span>
+        
+        <span class="n">Ieq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">Ieq</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">Var</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">w_var</span> <span class="p">)</span>
+        <span class="n">Coeff</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="mf">1.</span> <span class="p">)</span>
+    <span class="c1">#^ for stv</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">G</span>         <span class="o">=</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csc_matrix</span><span class="p">(</span> <span class="p">(</span><span class="n">Coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">Ieq</span><span class="p">,</span><span class="n">Var</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_vars</span><span class="p">,</span><span class="n">n_vars</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">h</span>         <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="n">n_vars</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dims</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;e&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s1">&#39;l&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">)</span>
+    
+    <span class="c1"># Objective function:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="n">n_vars</span><span class="p">,),</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span> <span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">stv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">[</span> <span class="n">sr_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.</span>
+    <span class="c1">#^ for stv</span>
+
+    <span class="n">toc_rest</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create the matrices [min -H(S|X,Y)]:&quot;</span><span class="p">,</span> <span class="n">toc_rest</span> <span class="o">-</span> <span class="n">tic_rest</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create the matrices [min -H(S|X,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_rest</span> <span class="o">-</span> <span class="n">tic_rest</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create the matrices [min -H(S|Y,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_rest</span> <span class="o">-</span> <span class="n">tic_rest</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+    <span class="n">toc_all</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">output</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create model [min -H(S|X,Y)]:&quot;</span><span class="p">,</span> <span class="n">toc_all</span> <span class="o">-</span> <span class="n">tic_all</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create model [min -H(S|X,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_all</span> <span class="o">-</span> <span class="n">tic_all</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.create_model(): Time to create model [min -H(S|Y,Z)]:&quot;</span><span class="p">,</span> <span class="n">toc_all</span> <span class="o">-</span> <span class="n">tic_all</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span></div>
+
+<span class="c1">#^ create_model()</span>
+
+<div class="viewcode-block" id="solve"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.solve">[docs]</a><span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Solves the exponential Cone Program min_{Delta_p}H(T|U,V) where U,V in {X,Y,Z}</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            c: numpy.array - objective function weights</span>
+<span class="sd">            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative </span>
+<span class="sd">            inequalities</span>
+
+<span class="sd">            h: numpy.array - L.H.S. of inequalities </span>
+<span class="sd">            dims: dictionary -  cones to be used </span>
+
+<span class="sd">                    keys: string - cone type (exponential or nonegative)</span>
+<span class="sd">                    values: int - number of cones</span>
+
+<span class="sd">            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and </span>
+<span class="sd">            q-p coupling equations </span>
+
+<span class="sd">            b: numpy.array - L.H.S. of equalities </span>
+<span class="sd">            output: int - print different outputs based on (int) to console</span>
+<span class="sd"> </span>
+<span class="sd">       Returns: </span>
+<span class="sd">            sol_rpq:    numpy.array - primal optimal solution</span>
+<span class="sd">            sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)</span>
+<span class="sd">            sol_lambda: numpy.array - equalities dual optimal solution</span>
+<span class="sd">            sol_mu:     numpy.array - inequalities dual  optimal solution   </span>
+<span class="sd">            sol_info:   dictionary - Brief stats of the optimization from ECOS</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">marg_xyz</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># for cond[]mutinf computation below</span>
+    
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># print(self.verbose)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ecos_kwargs</span><span class="p">[</span><span class="s2">&quot;verbose&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span>
+    <span class="c1">#^ if</span>
+    
+    <span class="n">solution</span> <span class="o">=</span> <span class="n">ecos</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ecos_kwargs</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s1">&#39;x&#39;</span> <span class="ow">in</span> <span class="n">solution</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_rpq</span>    <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_slack</span>  <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_lambda</span> <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_mu</span>     <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;z&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sol_info</span>   <span class="o">=</span> <span class="n">solution</span><span class="p">[</span><span class="s1">&#39;info&#39;</span><span class="p">]</span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.solve(): Time to solve the Exponential Program of H(S|W,T)&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span> 
+        <span class="k">return</span> <span class="s2">&quot;success&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_rpq</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_slack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_lambda</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_mu</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sol_info</span>
+    <span class="k">else</span><span class="p">:</span> <span class="c1"># &quot;x&quot; not in dict solution</span>
+        <span class="k">return</span> <span class="s2">&quot;TRIVARIATE_UNQ.solve(): x not in dict solution -- No Solution Found!!!&quot;</span></div>
+    <span class="c1">#^ if/esle</span>
+<span class="c1">#^ solve()</span>
+
+<div class="viewcode-block" id="check_feasibility"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.check_feasibility">[docs]</a><span class="k">def</span> <span class="nf">check_feasibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_sources</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">,</span> <span class="n">sol_slack</span><span class="p">,</span> <span class="n">sol_lambda</span><span class="p">,</span> <span class="n">sol_mu</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) </span>
+<span class="sd">          where U,V in {X,Y,Z}</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">             which_sources: [1,2] if sources are X and Y </span>
+<span class="sd">                            [1,3] if sources are X and Z</span>
+<span class="sd">                            [2,3] if sources are Y and Z</span>
+
+<span class="sd">             sol_rpq:    numpy.array - primal optimal solution</span>
+<span class="sd">             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)</span>
+<span class="sd">             sol_lambda: numpy.array - equalities dual optimal solution</span>
+<span class="sd">             sol_mu:     numpy.array - inequalities dual  optimal solution   </span>
+<span class="sd">             output: int - print different outputs based on (int) to console</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">             primal_infeasability: float - maximum violation of the optimal primal solution</span>
+<span class="sd">                                           for primal equalities and inequalities</span>
+<span class="sd">             dual_infeasability:   float - maximum violation of the optimal dual solution</span>
+<span class="sd">                                           for dual equalities and inequalities</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># returns pair (p,d) of primal/dual infeasibility (maxima)</span>
+    <span class="n">idx_of_trip</span><span class="p">,</span><span class="n">trip_of_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialization</span><span class="p">(</span><span class="n">which_sources</span><span class="p">)</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">)</span>
+    <span class="n">ltrip_of_idx</span> <span class="o">=</span> <span class="n">n</span>
+    <span class="c1"># Primal infeasiblility</span>
+    
+    <span class="c1"># non-negative ineqaulity</span>
+    <span class="n">itic_neg</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="n">max_q_negativity</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">)):</span>
+        <span class="n">max_q_negativity</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_q_negativity</span><span class="p">,</span> <span class="o">-</span><span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+    <span class="c1">#^ for</span>
+    <span class="n">toc_neg</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">itoc_neg</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute primal negativity violations [min -H(S|XY)]:&quot;</span><span class="p">,</span> <span class="n">itoc_neg</span> <span class="o">-</span> <span class="n">itic_neg</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute primal negativity violations [min -H(S|XZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_neg</span> <span class="o">-</span> <span class="n">itic_neg</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute primal negativity violations [min -H(S|YZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_neg</span> <span class="o">-</span> <span class="n">itic_neg</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+    <span class="c1">#^ if printing</span>
+    <span class="n">max_violation_of_eqn</span> <span class="o">=</span> <span class="mf">0.</span>
+
+    <span class="n">itic_marg</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="c1"># sx** - marginals:</span>
+    <span class="n">sol_b_sx</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="n">sol_b_sx</span><span class="p">[</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+    <span class="c1">#^ for sxyz exists </span>
+    <span class="k">for</span> <span class="n">sx</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span>  <span class="o">=</span> <span class="n">sx</span>
+        <span class="n">mysum</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">sol_b_sx</span><span class="p">[</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">]</span>
+        <span class="n">max_violation_of_eqn</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span> <span class="n">max_violation_of_eqn</span><span class="p">,</span> <span class="nb">abs</span><span class="p">(</span><span class="n">mysum</span><span class="p">)</span> <span class="p">)</span>
+    <span class="c1">#^ for sx exists</span>
+    
+    <span class="c1"># s*y* - marginals:</span>
+    <span class="n">sol_b_sy</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="n">sol_b_sy</span><span class="p">[</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+    <span class="c1">#^ for sxyz exists </span>
+    <span class="k">for</span> <span class="n">sy</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">y</span>  <span class="o">=</span> <span class="n">sy</span>
+        <span class="n">mysum</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">sol_b_sy</span><span class="p">[</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">]</span>
+        <span class="n">max_violation_of_eqn</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span> <span class="n">max_violation_of_eqn</span><span class="p">,</span> <span class="nb">abs</span><span class="p">(</span><span class="n">mysum</span><span class="p">)</span> <span class="p">)</span>
+    <span class="c1">#^ for sy exists</span>
+    
+    <span class="c1"># s**z - marginals:</span>
+    <span class="n">sol_b_sz</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="n">sol_b_sz</span><span class="p">[</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+    <span class="c1">#^ for sxyz exists </span>
+    <span class="k">for</span> <span class="n">sz</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">z</span>  <span class="o">=</span> <span class="n">sz</span>
+        <span class="n">mysum</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="n">sol_b_sz</span><span class="p">[</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">]</span>
+        <span class="n">max_violation_of_eqn</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span> <span class="n">max_violation_of_eqn</span><span class="p">,</span> <span class="nb">abs</span><span class="p">(</span><span class="n">mysum</span><span class="p">)</span> <span class="p">)</span>
+    <span class="c1">#^ for sz exists</span>
+    <span class="n">itoc_marg</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute violation of marginal eqautions [min -H(S|XY)]:&quot;</span><span class="p">,</span> <span class="n">itoc_marg</span> <span class="o">-</span> <span class="n">itic_marg</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute violation of marginal eqautions [min -H(S|XZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_marg</span> <span class="o">-</span> <span class="n">itic_marg</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute violation of marginal eqautions [min -H(S|YZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_marg</span> <span class="o">-</span> <span class="n">itic_marg</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+    <span class="c1">#^ if printing</span>
+    
+    <span class="n">primal_infeasability</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_violation_of_eqn</span><span class="p">,</span> <span class="n">max_q_negativity</span><span class="p">)</span>
+    
+    <span class="c1"># Dual infeasiblility</span>
+
+    <span class="n">dual_infeasability</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="n">tic_idx</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">itic_idx</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="n">idx_of_sx</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">idx_of_sx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1">#^ if sx exists</span>
+        <span class="c1">#^ for x</span>
+    <span class="c1">#^ for s</span>
+
+    <span class="n">idx_of_sy</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">Y</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">idx_of_sy</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1">#^ if sy exists</span>
+        <span class="c1">#^ for y</span>
+    <span class="c1">#^ for s</span>
+
+    <span class="n">idx_of_sz</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">idx_of_sz</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">=</span> <span class="n">i</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c1">#^ if sz exists</span>
+        <span class="c1">#^ for z</span>
+    <span class="c1">#^ for s</span>
+    <span class="n">itoc_idx</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to find correct dual idx [min -H(S|XY)]:&quot;</span><span class="p">,</span> <span class="n">itoc_idx</span> <span class="o">-</span> <span class="n">itic_idx</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to find correct dual idx [min -H(S|XZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_idx</span> <span class="o">-</span> <span class="n">itic_idx</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to find correct dual idx [min -H(S|YZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_idx</span> <span class="o">-</span> <span class="n">itic_idx</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+
+    <span class="c1"># non-negativity dual ineqaulity</span>
+    
+    <span class="n">itic_negD12</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+
+        <span class="c1"># Get indices of dual variables of the marginal constriants</span>
+        <span class="n">sz_idx</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+            <span class="n">sz_idx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">)</span> <span class="o">+</span> <span class="n">idx_of_sz</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+        <span class="c1">#^ for</span>
+        
+        <span class="c1"># Compute mu_xy: dual varaible of the q-t coupling contsraints</span>
+        <span class="n">mu_xy</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">sxy</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="o">=</span> <span class="n">sxy</span>
+            <span class="n">mu_xy</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="p">]</span>
+        <span class="c1">#^ for sxy</span>
+        
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">sxy</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="o">=</span> <span class="n">sxy</span>
+            <span class="n">sx_idx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_sx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+            <span class="n">sy_idx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="n">idx_of_sy</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+            <span class="c1"># nu_sxy: dual variable of the q-w coupling constraints</span>
+            <span class="n">nu_sxy</span> <span class="o">=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="p">]</span>
+            <span class="k">assert</span> <span class="n">nu_sxy</span> <span class="o">==</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="s2">&quot;problem in nu&quot;</span>
+
+            <span class="c1"># mu_sxy: dual varaible of the q-t coupling contsraints</span>
+            <span class="n">mu_sxy</span> <span class="o">=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="p">]</span>
+            <span class="k">assert</span> <span class="n">mu_sxy</span> <span class="o">==</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">k</span> <span class="p">],</span> <span class="s2">&quot;problem in mu&quot;</span>
+            
+
+            <span class="c1"># Find the most violated nonnegative dual ieq </span>
+            <span class="c1">#     a      &gt;= 0</span>
+            <span class="n">dual_infeasability</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">dual_infeasability</span><span class="p">,</span> <span class="o">-</span><span class="n">sol_lambda</span><span class="p">[</span><span class="n">sx_idx</span><span class="p">]</span>
+                                     <span class="o">-</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">sy_idx</span><span class="p">]</span>
+                                     <span class="o">-</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="nb">int</span><span class="p">(</span><span class="n">sz_idx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)])</span> <span class="p">]</span>
+                                     <span class="o">-</span> <span class="n">mu_xy</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+                                     <span class="o">-</span> <span class="n">nu_sxy</span>
+            <span class="p">)</span>
+
+
+            <span class="c1"># Find the most violated K_exp dual ieq</span>
+            <span class="c1"># print(&quot;dual of kexp: &quot;, sol_lambda[sx_idx]</span>
+            <span class="c1">#   + sol_lambda[sy_idx]</span>
+            <span class="c1">#   + mu_xy</span>
+            <span class="c1">#   - nu_sxy</span>
+            <span class="c1">#   +ln(-mu_sxy)</span>
+            <span class="c1">#   +1)</span>
+        <span class="c1">#^ for</span>
+        <span class="n">itoc_negD12</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute neagtive dual violations [min -H(S|XY)]:&quot;</span><span class="p">,</span> <span class="n">itoc_negD12</span> <span class="o">-</span> <span class="n">itic_negD12</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+    <span class="c1">#^ if sources</span>
+    
+    <span class="n">itic_negD13</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+
+        <span class="c1"># Get indices of dual variables of the marginal constriants</span>
+        <span class="n">sy_idx</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+            <span class="n">sy_idx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="n">idx_of_sy</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+        <span class="c1">#^ for</span>
+
+        <span class="c1"># mu_xz: dual varaible of the q-t coupling contsraints</span>
+        <span class="n">mu_xz</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">sxz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxz</span>
+            <span class="n">mu_xz</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span>
+        <span class="c1">#^ for sxz</span>
+        
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">sxz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxz</span>
+            <span class="c1"># Get indices of dual variables of the marginal constriants</span>
+            <span class="n">sx_idx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_sx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+            <span class="n">sz_idx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">)</span> <span class="o">+</span> <span class="n">idx_of_sz</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+
+            <span class="c1"># nu_sxz: dual variable of the q-w coupling constraints</span>
+            
+            <span class="n">nu_sxz</span> <span class="o">=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span>
+            <span class="k">assert</span> <span class="n">nu_sxz</span> <span class="o">==</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="s2">&quot;problem in nu&quot;</span>
+
+            <span class="c1"># mu_sxz: dual varaible of the q-t coupling contsraints</span>
+            <span class="n">mu_sxz</span> <span class="o">=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span>
+            <span class="k">assert</span> <span class="n">mu_sxz</span> <span class="o">==</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">k</span> <span class="p">],</span> <span class="s2">&quot;problem in mu&quot;</span>
+
+            <span class="c1"># Find the most violated nonnegative dual ieq </span>
+            <span class="c1">#     a      &gt;= 0</span>
+            <span class="n">dual_infeasability</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">dual_infeasability</span><span class="p">,</span> <span class="o">-</span><span class="n">sol_lambda</span><span class="p">[</span><span class="n">sx_idx</span><span class="p">]</span>
+                                         <span class="o">-</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">sy_idx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]]</span>
+                                         <span class="o">-</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">sz_idx</span><span class="p">]</span>
+                                         <span class="o">-</span> <span class="n">mu_xz</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+                                         <span class="o">-</span> <span class="n">nu_sxz</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Find the most violated K_exp dual ieq</span>
+            <span class="c1"># print(&quot;dual of kexp: &quot;, sol_lambda[sx_idx]</span>
+            <span class="c1">#   + sol_lambda[sz_idx]</span>
+            <span class="c1">#   + mu_xz</span>
+            <span class="c1">#   - nu_sxz</span>
+            <span class="c1">#   +ln(-mu_sxz)</span>
+            <span class="c1">#   +1)</span>
+        <span class="c1">#^ for</span>
+        <span class="n">itoc_negD13</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span> <span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute neagtive dual violations [min -H(S|XZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_negD13</span> <span class="o">-</span> <span class="n">itic_negD13</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+    <span class="c1">#^ if sources </span>
+
+    <span class="n">itic_negD23</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+
+        <span class="c1"># Get indices of dual variables of the marginal constriants</span>
+        <span class="n">sx_idx</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">sxyz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quad_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+            <span class="n">sx_idx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_sx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span>
+        <span class="c1">#^ for</span>
+
+        <span class="c1"># mu_yz: dual varaible of the q-t coupling contsraints </span>
+        <span class="n">mu_yz</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mf">0.</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">syz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">syz</span>
+            <span class="n">mu_yz</span><span class="p">[(</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span>
+        <span class="c1">#^ for syz</span>
+        
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">syz</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">):</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">syz</span>
+            <span class="c1"># Get indices of dual variables of the marginal constriants</span>
+            <span class="n">sy_idx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="n">idx_of_sy</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span>
+            <span class="n">sz_idx</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="p">)</span> <span class="o">+</span> <span class="n">idx_of_sz</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+
+            <span class="c1"># nu_syz: dual variable of the q-w coupling constraints</span>
+            
+            <span class="n">nu_syz</span> <span class="o">=</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]]</span>
+            <span class="k">assert</span> <span class="n">nu_syz</span> <span class="o">==</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="s2">&quot;problem in nu&quot;</span>
+
+            <span class="c1"># mu_sxy: dual varaible of the q-t coupling contsraints</span>
+            <span class="n">mu_syz</span> <span class="o">=</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">idx_of_trip</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="p">]</span>
+            <span class="k">assert</span> <span class="n">mu_syz</span> <span class="o">==</span> <span class="n">sol_lambda</span><span class="p">[</span> <span class="n">n</span> <span class="o">+</span> <span class="n">k</span> <span class="p">],</span> <span class="s2">&quot;problem in mu&quot;</span>
+            
+            <span class="c1"># Find the most violated nonnegative dual ieq </span>
+            <span class="c1">#     a      &gt;= 0</span>
+            <span class="n">dual_infeasability</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">dual_infeasability</span><span class="p">,</span> <span class="o">-</span><span class="n">sol_lambda</span><span class="p">[</span><span class="n">sx_idx</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]]</span>
+                                         <span class="o">-</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">sy_idx</span><span class="p">]</span>
+                                         <span class="o">-</span> <span class="n">sol_lambda</span><span class="p">[</span><span class="n">sz_idx</span><span class="p">]</span>
+                                         <span class="o">-</span> <span class="n">mu_yz</span><span class="p">[(</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span>
+                                         <span class="o">-</span> <span class="n">nu_syz</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Find the most violated K_exp dual ieq</span>
+            <span class="c1"># print(&quot;dual of kexp: &quot;, sol_lambda[sy_idx]</span>
+            <span class="c1">#   + sol_lambda[sz_idx]</span>
+            <span class="c1">#   + mu_yz</span>
+            <span class="c1">#   - nu_syz</span>
+            <span class="c1">#   +ln(-mu_syz)</span>
+            <span class="c1">#   +1)</span>
+        <span class="c1">#^ for</span>
+        <span class="n">itoc_negD23</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.check_feasibility(): Time to compute neagtive dual violations [min -H(S|YZ)]:&quot;</span><span class="p">,</span> <span class="n">itoc_negD23</span> <span class="o">-</span> <span class="n">itic_negD23</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+    <span class="c1">#^ if sources</span>
+     
+    <span class="k">return</span> <span class="n">primal_infeasability</span><span class="p">,</span> <span class="n">dual_infeasability</span></div>
+<span class="c1">#^ check_feasibility()    </span>
+
+<div class="viewcode-block" id="dual_value"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.dual_value">[docs]</a><span class="k">def</span> <span class="nf">dual_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sol_lambda</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Evaluates the dual value of H(T|U,V) where U,V in {X,Y,Z}</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">             sol_lambda: numpy.array - equalities dual optimal solution</span>
+<span class="sd">             b: numpy.array - L.H.S. of equalities </span>
+<span class="sd">        </span>
+<span class="sd">        Returns: </span>
+<span class="sd">            float </span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">sol_lambda</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="marginals"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.marginals">[docs]</a><span class="k">def</span> <span class="nf">marginals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_sources</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes all the marginal distributions of the optimal distribution</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">             which_sources: [1,2] if sources are X and Y and Q is the optimal</span>
+<span class="sd">                            distribution of min_{Delta_P} H(T|X,Y)</span>
+<span class="sd">                            [1,3] if sources are X and Z and Q is the optimal</span>
+<span class="sd">                            distribution of min_{Delta_P} H(T|X,Z)</span>
+<span class="sd">                            [2,3] if sources are Y and Z and Q is the optimal</span>
+<span class="sd">                            distribution of min_{Delta_P} H(T|Y,Z)</span>
+
+<span class="sd">             sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone</span>
+<span class="sd">             where q is the optimal distribution</span>
+
+<span class="sd">             output: int - print different outputs based on (int) to console</span>
+<span class="sd">             </span>
+<span class="sd">        Returns: </span>
+<span class="sd">            dictionary - optimal marginal distribution of T</span>
+<span class="sd">              keys: t</span>
+<span class="sd">              values: Q(t)</span>
+<span class="sd">            dictionary - optimal marginal distribution of X</span>
+<span class="sd">              keys: x</span>
+<span class="sd">              values: Q(x)</span>
+<span class="sd">            dictionary - optimal marginal distribution of Y</span>
+<span class="sd">              keys: y</span>
+<span class="sd">              values: Q(y)</span>
+<span class="sd">            dictionary - optimal marginal distribution of Z</span>
+<span class="sd">              keys: z</span>
+<span class="sd">              values: Q(z)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (T,X)</span>
+<span class="sd">              keys: t,x</span>
+<span class="sd">              values: Q(t,x)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (T,Y)</span>
+<span class="sd">              keys: t,y</span>
+<span class="sd">              values: Q(t,y)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (T,Z)</span>
+<span class="sd">              keys: t,z</span>
+<span class="sd">              values: Q(t,z)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (X,Y)</span>
+<span class="sd">              keys: x,y</span>
+<span class="sd">              values: Q(x,y)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (X,Z)</span>
+<span class="sd">              keys: x,z</span>
+<span class="sd">              values: Q(x,z)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (Y,Z)</span>
+<span class="sd">              keys: y,z</span>
+<span class="sd">              values: Q(y,z)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (T,X,Y)</span>
+<span class="sd">              keys: t,x,y</span>
+<span class="sd">              values: Q(t,x,y)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (T,X,Z)</span>
+<span class="sd">              keys: t,x,z</span>
+<span class="sd">              values: Q(t,x,z)</span>
+<span class="sd">            dictionary - optimal marginal distribution of (T,Y,Z)</span>
+<span class="sd">              keys: t,y,z</span>
+<span class="sd">              values: Q(t,y,z)</span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    
+    <span class="c1"># provide the positive marginals all of a pdf for random varibles (A,B,C,D)</span>
+    
+    <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+    <span class="c1"># First order marginals</span>
+    <span class="n">marg_S</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_X</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_Y</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_Z</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="c1"># Second order marginals </span>
+    <span class="n">marg_SX</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_SY</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_SZ</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_XY</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_XZ</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_YZ</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="c1"># Third order marginals</span>
+    <span class="n">marg_SXY</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_SXZ</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">marg_SYZ</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="c1"># Initialize the triplet </span>
+    <span class="n">idx_of_trip</span><span class="p">,</span><span class="n">trip_of_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialization</span><span class="p">(</span><span class="n">which_sources</span><span class="p">)</span>
+    <span class="n">ltrip_of_idx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">trip_of_idx</span><span class="p">)</span>
+
+    <span class="c1"># Compute the marginals </span>
+    <span class="k">for</span> <span class="n">sxyz</span><span class="p">,</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">idx_of_quad</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxyz</span>
+        <span class="n">marg_S</span><span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_X</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_Y</span><span class="p">[</span><span class="n">y</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_Z</span><span class="p">[</span><span class="n">z</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_SX</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_SY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_SZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_XY</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_XZ</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_YZ</span><span class="p">[(</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_SXY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_SXZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+        <span class="n">marg_SYZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">+=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">sol_rpq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sq_vidx</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ltrip_of_idx</span><span class="p">)])</span>
+    <span class="c1">#^ for</span>
+    <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.marginals(): Time to compute marginals() of H(S|XY):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.marginals(): Time to compute marginals() of H(S|XZ):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.marginals(): Time to compute marginals() of H(S|YZ):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span> <span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="c1">#^ if sources</span>
+    <span class="c1">#^ if printing</span>
+    
+    <span class="k">return</span> <span class="n">marg_S</span><span class="p">,</span> <span class="n">marg_X</span><span class="p">,</span> <span class="n">marg_Y</span><span class="p">,</span> <span class="n">marg_Z</span><span class="p">,</span> <span class="n">marg_SX</span><span class="p">,</span> <span class="n">marg_SY</span><span class="p">,</span> <span class="n">marg_SZ</span><span class="p">,</span> <span class="n">marg_XY</span><span class="p">,</span> <span class="n">marg_XZ</span><span class="p">,</span> <span class="n">marg_YZ</span><span class="p">,</span> <span class="n">marg_SXY</span><span class="p">,</span> <span class="n">marg_SXZ</span><span class="p">,</span> <span class="n">marg_SYZ</span></div>
+
+<span class="c1">#^ marginals()</span>
+
+
+<div class="viewcode-block" id="condentropy_2vars"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.condentropy_2vars">[docs]</a><span class="k">def</span> <span class="nf">condentropy_2vars</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">which_sources</span><span class="p">,</span> <span class="n">sol_rpq</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">marg_XY</span><span class="p">,</span> <span class="n">marg_XZ</span><span class="p">,</span> <span class="n">marg_YZ</span><span class="p">,</span> <span class="n">marg_SXY</span><span class="p">,</span> <span class="n">marg_SXZ</span><span class="p">,</span> <span class="n">marg_SYZ</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Evalutes the value of H(T|U,V) w.r.t. the optimal distribution where U,V in {X,Y,Z}</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">             which_sources: [1,2] if sources are X and Y </span>
+<span class="sd">                            [1,3] if sources are X and Z</span>
+<span class="sd">                            [2,3] if sources are Y and Z</span>
+
+<span class="sd">             sol_rpq: numpy.array - primal optimal solution</span>
+<span class="sd">             output:  int - print different outputs based on (int) to console</span>
+<span class="sd">             marg_XY: dictionary - optimal marginal distribution of (X,Y)</span>
+
+<span class="sd">                      keys: x,y</span>
+<span class="sd">                      values: Q(x,y)</span>
+
+<span class="sd">             marg_XZ: dictionary - optimal marginal distribution of (X,Z)</span>
+
+<span class="sd">                      keys: x,z</span>
+<span class="sd">                      values: Q(x,z)</span>
+
+<span class="sd">             marg_YZ: dictionary - optimal marginal distribution of (Y,Z)</span>
+
+<span class="sd">                      keys: y,z</span>
+<span class="sd">                      values: Q(y,z)</span>
+<span class="sd">             </span>
+<span class="sd">             marg_TXY: dictionary - optimal marginal distribution of (T,X,Y)</span>
+
+<span class="sd">                       keys: t,x,y</span>
+<span class="sd">                       values: Q(t,x,y)</span>
+<span class="sd">             </span>
+<span class="sd">             marg_TXZ: dictionary - optimal marginal distribution of (T,X,Z)</span>
+
+<span class="sd">                        keys: t,x,z</span>
+<span class="sd">                        values: Q(t,x,z)</span>
+
+<span class="sd">             marg_TYZ: dictionary - optimal marginal distribution of (T,Y,Z)</span>
+
+<span class="sd">                       keys: t,y,z</span>
+<span class="sd">                       values: Q(t,y,z)</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            (if [1,2]: U,V=X,Y | if [1,3]: U,V=X,Z | if [2,3]: U,V=Y,Z)</span>
+<span class="sd">            mysum: float - H(T|U,V)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># compute cond entropy of the distribution in self.sol_rpq</span>
+    
+    <span class="n">mysum</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="n">idx_of_trip</span><span class="p">,</span><span class="n">trip_of_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">initialization</span><span class="p">(</span><span class="n">which_sources</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+        <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="c1"># H( S | X, Y )</span>
+        <span class="k">for</span> <span class="n">sxy</span> <span class="ow">in</span> <span class="n">idx_of_trip</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="o">=</span> <span class="n">sxy</span>
+            <span class="k">if</span> <span class="n">marg_XY</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span>  <span class="n">marg_SXY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># subtract q_{sxy}*log( q_{sxy}/q_{xy} )</span>
+                <span class="n">mysum</span> <span class="o">-=</span> <span class="n">marg_SXY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">marg_SXY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span><span class="o">/</span><span class="n">marg_XY</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)])</span>
+            <span class="c1">#^ if</span>
+        <span class="c1">#^ for </span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|XY):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span><span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="c1"># print(&quot;H(T|XY)&quot;, mysum)</span>
+        <span class="k">return</span> <span class="n">mysum</span>
+    <span class="c1">#^ if sources</span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="c1"># H( S | X, Z )</span>
+        <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">sxz</span> <span class="ow">in</span> <span class="n">idx_of_trip</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">sxz</span>
+            <span class="k">if</span> <span class="n">marg_XZ</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span>  <span class="n">marg_SXZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># subtract q_{sxz}*log( q_{sxz}/q_{xz} )</span>
+                <span class="n">mysum</span> <span class="o">-=</span> <span class="n">marg_SXZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">marg_SXZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">/</span><span class="n">marg_XZ</span><span class="p">[(</span><span class="n">x</span><span class="p">,</span><span class="n">z</span><span class="p">)])</span>
+            <span class="c1">#^ if</span>
+        <span class="c1">#^ for </span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|XZ):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span><span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="c1"># print(&quot;H(T|XZ)&quot;, mysum)</span>
+        <span class="k">return</span> <span class="n">mysum</span>
+    <span class="c1">#^ if sources</span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="c1"># H( S | Y, Z )</span>
+        <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">syz</span> <span class="ow">in</span> <span class="n">idx_of_trip</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span> <span class="o">=</span> <span class="n">syz</span>
+            <span class="k">if</span> <span class="n">marg_YZ</span><span class="p">[(</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span>  <span class="n">marg_SYZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># subtract q_{syz}*log( q_{syz}/q_{yz} )</span>
+                <span class="n">mysum</span> <span class="o">-=</span> <span class="n">marg_SYZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">marg_SYZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">/</span><span class="n">marg_YZ</span><span class="p">[(</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">)])</span>
+            <span class="c1">#^ if</span>
+        <span class="c1">#^ for </span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.condentropy_2vars(): Time to compute H(S|YZ):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span><span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="c1"># print(&quot;H(T|YZ)&quot;, mysum)</span>
+        <span class="k">return</span> <span class="n">mysum</span>
+    <span class="c1">#^ if sources</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;TRIVARIATE_UNQ.condentropy_2vars(): which_sources takes the values [1,2], [1,3], [2,3]&quot;</span><span class="p">)</span>
+        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+    <span class="c1">#^ if sources</span>
+
+<span class="c1">#^ condentropy_2vars()</span>
+
+
+
+<div class="viewcode-block" id="condentropy_1var"><a class="viewcode-back" href="../MAXENT3D_PID.html#TRIVARIATE_UNQ.condentropy_1var">[docs]</a><span class="k">def</span> <span class="nf">condentropy_1var</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">which_sources</span><span class="p">,</span><span class="n">sol_rpq</span><span class="p">,</span> <span class="n">marg_SX</span><span class="p">,</span> <span class="n">marg_SY</span><span class="p">,</span> <span class="n">marg_SZ</span><span class="p">,</span> <span class="n">marg_X</span><span class="p">,</span> <span class="n">marg_Y</span><span class="p">,</span> <span class="n">marg_Z</span><span class="p">):</span>
+    <span class="c1"># (c) Abdullah Makkeh, Dirk Oliver Theis</span>
+    <span class="c1"># Permission to use and modify under Apache License version 2.0</span>
+
+    <span class="n">mysum</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="k">if</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]:</span>
+        <span class="c1"># H( S | Z )</span>
+        <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tz</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="ow">and</span> <span class="n">marg_SZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">marg_Z</span><span class="p">[</span><span class="n">z</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Subtract q_{s,z}*log( q_{s,z}/ q_{z} )</span>
+                    <span class="n">mysum</span> <span class="o">-=</span> <span class="n">marg_SZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">marg_SZ</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">z</span><span class="p">)]</span><span class="o">/</span><span class="n">marg_Z</span><span class="p">[</span><span class="n">z</span><span class="p">])</span>
+                <span class="c1">#^ if sz exists</span>
+            <span class="c1">#^ for z </span>
+        <span class="c1">#^ for z</span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time to compute H(S|Z):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span><span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mysum</span>
+    <span class="c1">#^ if sources</span>
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="c1"># H( S | Y )</span>
+        <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">Y</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_ty</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="ow">and</span> <span class="n">marg_SY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">marg_Y</span><span class="p">[</span><span class="n">y</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Subtract q_{s,y}*log( q_{s,y}/ q_{y} )</span>
+                    <span class="n">mysum</span> <span class="o">-=</span> <span class="n">marg_SY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">marg_SY</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">y</span><span class="p">)]</span><span class="o">/</span><span class="n">marg_Y</span><span class="p">[</span><span class="n">y</span><span class="p">])</span>
+                <span class="c1">#^ if sy exists</span>
+            <span class="c1">#^ for y </span>
+        <span class="c1">#^ for s</span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time to compute H(S|Y):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span><span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mysum</span>
+    <span class="c1">#^ if sources</span>
+    
+    <span class="k">elif</span> <span class="n">which_sources</span> <span class="o">==</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">]:</span>
+        <span class="c1"># H ( S | X )</span>
+        <span class="n">itic</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tx</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="ow">and</span> <span class="n">marg_SX</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">marg_X</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Subtract q_{s,x}*log( q_{s,x}/ q_{x} )</span>
+                    <span class="n">mysum</span> <span class="o">-=</span> <span class="n">marg_SX</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">marg_SX</span><span class="p">[(</span><span class="n">s</span><span class="p">,</span><span class="n">x</span><span class="p">)]</span><span class="o">/</span><span class="n">marg_X</span><span class="p">[</span><span class="n">x</span><span class="p">])</span>
+                <span class="c1">#^ if sx exists</span>
+            <span class="c1">#^ for y </span>
+        <span class="c1">#^ for s</span>
+        <span class="n">itoc</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">process_time</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time to compute H(S|X):&quot;</span><span class="p">,</span> <span class="n">itoc</span> <span class="o">-</span> <span class="n">itic</span><span class="p">,</span><span class="s2">&quot;secs&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mysum</span>
+    <span class="c1">#^ if sources</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; which sources takes the values: [1,2], [1,3], [2,3]&quot;</span><span class="p">)</span>
+        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+    <span class="c1">#^ if sources</span>
+    
+<span class="c1">#^ condentropy_1var()</span>
+
+<span class="c1"># def entropy_S(self,pdf, sol_rpq, which_sources, output):</span>
+<span class="c1">#     # (c) Abdullah Makkeh, Dirk Oliver Theis</span>
+<span class="c1">#     # Permission to use and modify under Apache License version 2.0</span>
+<span class="c1">#     mysum = 0.</span>
+<span class="c1">#     marg_s = defaultdict(lambda: 0.)</span>
+<span class="c1">#     idx_of_trip,trip_of_idx = self.initialization(which_sources)</span>
+<span class="c1">#     ltrip_of_idx = len(trip_of_idx)</span>
+<span class="c1">#     for sxyz, i in self.idx_of_quad.items():</span>
+<span class="c1">#         s,x,y,z = sxyz</span>
+<span class="c1">#         marg_s[s] += max(0, sol_rpq[self.sq_vidx(i, ltrip_of_idx)])</span>
+<span class="c1">#     #^ for</span>
+<span class="c1">#     for s in self.S:</span>
+<span class="c1">#         if marg_s[s] &gt; 0: mysum -= marg_s[s]*log(marg_s[s])</span>
+
+<span class="c1">#     print(&quot;H(S) new:&quot;, mysum)</span>
+<span class="c1">#     itic = time.process_time()</span>
+<span class="c1">#     mysum = 0.</span>
+<span class="c1">#     for s in self.S:</span>
+<span class="c1">#         psum = 0.</span>
+<span class="c1">#         for x in self.X:</span>
+<span class="c1">#             if not (s,x) in self.b_sx: continue</span>
+<span class="c1">#             for y in self.Y:</span>
+<span class="c1">#                 if not (s,y) in self.b_sy:  continue</span>
+<span class="c1">#                 for z in self.Z:</span>
+<span class="c1">#                     if (s,x,y,z) in pdf.keys():</span>
+<span class="c1">#                         psum += pdf[(s,x,y,z)]</span>
+<span class="c1">#                     #^ if</span>
+<span class="c1">#                 #^ for z</span>
+<span class="c1">#             #^ for y</span>
+<span class="c1">#         #^ for x</span>
+<span class="c1">#         mysum -= psum * log(psum)</span>
+<span class="c1">#     #^ for x</span>
+<span class="c1">#     print(&quot;H(S) old:&quot;, mysum)</span>
+<span class="c1">#     itoc = time.process_time()</span>
+<span class="c1">#     if output == 2: print(&quot;Time to compute H(S):&quot;, itoc - itic,&quot;secs&quot;)</span>
+<span class="c1">#     return mysum</span>
+
+<span class="c1"># #^ entropy_S()</span>
+
+<span class="c1">#EOF</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Abdullah Makkeh
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
