@@ -1,1 +1,1 @@
-pip install ecos
+ecos
