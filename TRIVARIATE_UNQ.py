@@ -1,16 +1,13 @@
-"""
-# TRIVARIATE_UNQ.py -- Python Class
-#
-# Creates the optimization problems needed to compute unique information
-#
-# The optimization problems are:
-#
-# min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)
-#
-# (c) Abdullah Makkeh, Dirk Oliver Theis
-# Permission to use and modify under Apache License version 2.0
-#
-#########################################################################
+"""TRIVARIATE_UNQ.py -- Python Class
+
+Creates the optimization problems needed to compute unique information
+
+The optimization problems are:
+
+min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)
+
+(c) Abdullah Makkeh, Dirk Oliver Theis
+Permission to use and modify under Apache License version 2.0
 """
 import ecos
 from scipy import sparse
@@ -51,11 +48,14 @@ def initialization(self, which_sources):
              which_sources: [1,2] if sources are X and Y 
                             [1,3] if sources are X and Z
                             [2,3] if sources are Y and Z
+
         Returns: 
             (if [1,2] u,v=x,y|if [1,3] u,v=x,z|if [2,3] u,v=y,z|)
             dictionary
+
               keys: (t,u,v)
               values: their indices 
+
             list of (t,u,v)
     """
 
@@ -132,27 +132,34 @@ def create_model(self, which_sources, output):
            of the form 
               min. c'x
               s.t.
-                  Ax = b
-                  Gx <=_K h
-             where x = (r,p,q)
-                   K represents a vector representing cones (K_1, K_2)
-                   such that K_1 is a vector repesenting exponential cones 
-                             K_2 is a vector repesenting nonnegative cones 
+              Ax = b
+              Gx <=_K h
+
+           where 
+           x = (r,p,q)
+           K represents a vector representing cones (K_1, K_2)
+           such that K_1 is a vector repesenting exponential cones 
+           K_2 is a vector repesenting nonnegative cones 
         
         Args:
              which_sources: [1,2] if sources are X and Y 
                             [1,3] if sources are X and Z
                             [2,3] if sources are Y and Z
+
         Returns: 
             numpy.array - objective function weights
             scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-                                      inequalities
+            inequalities
+            
             numpy.array - L.H.S. of inequalities 
             dictionary -  cones to be used 
+
                 keys: string - cone type (exponential or nonegative)
                 values: int - number of cones
+
             scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-                                      q-p coupling equations 
+            q-p coupling equations 
+
             numpy.array - L.H.S. of equalities 
         
     """
@@ -509,20 +516,23 @@ def solve(self, c, G, h, dims, A, b, output):
         Args:
             c: numpy.array - objective function weights
             G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-                                         inequalities
+            inequalities
+
             h: numpy.array - L.H.S. of inequalities 
             dims: dictionary -  cones to be used 
+
                     keys: string - cone type (exponential or nonegative)
                     values: int - number of cones
+
             A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-                                         q-p coupling equations 
+            q-p coupling equations 
+
             b: numpy.array - L.H.S. of equalities 
             output: int - print different outputs based on (int) to console
  
        Returns: 
             sol_rpq:    numpy.array - primal optimal solution
-            sol_slack:  numpy.array - slack of primal optimal solution 
-                                      (G*sol_rpq - h)
+            sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
             sol_lambda: numpy.array - equalities dual optimal solution
             sol_mu:     numpy.array - inequalities dual  optimal solution   
             sol_info:   dictionary - Brief stats of the optimization from ECOS
@@ -561,9 +571,9 @@ def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_m
              which_sources: [1,2] if sources are X and Y 
                             [1,3] if sources are X and Z
                             [2,3] if sources are Y and Z
+
              sol_rpq:    numpy.array - primal optimal solution
-             sol_slack:  numpy.array - slack of primal optimal solution 
-                                      (G*sol_rpq - h)
+             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
              sol_lambda: numpy.array - equalities dual optimal solution
              sol_mu:     numpy.array - inequalities dual  optimal solution   
              output: int - print different outputs based on (int) to console
@@ -877,7 +887,8 @@ def marginals(self, which_sources, sol_rpq, output):
                             distribution of min_{Delta_P} H(T|Y,Z)
 
              sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone
-                      where q is the optimal distribution
+             where q is the optimal distribution
+
              output: int - print different outputs based on (int) to console
              
         Returns: 
@@ -990,26 +1001,38 @@ def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, ma
              which_sources: [1,2] if sources are X and Y 
                             [1,3] if sources are X and Z
                             [2,3] if sources are Y and Z
-             sol_rpq:    numpy.array - primal optimal solution
-             output: int - print different outputs based on (int) to console
+
+             sol_rpq: numpy.array - primal optimal solution
+             output:  int - print different outputs based on (int) to console
              marg_XY: dictionary - optimal marginal distribution of (X,Y)
-              keys: x,y
-              values: Q(x,y)
+
+                      keys: x,y
+                      values: Q(x,y)
+
              marg_XZ: dictionary - optimal marginal distribution of (X,Z)
-              keys: x,z
-              values: Q(x,z)
+
+                      keys: x,z
+                      values: Q(x,z)
+
              marg_YZ: dictionary - optimal marginal distribution of (Y,Z)
-              keys: y,z
-              values: Q(y,z)
+
+                      keys: y,z
+                      values: Q(y,z)
+             
              marg_TXY: dictionary - optimal marginal distribution of (T,X,Y)
-              keys: t,x,y
-              values: Q(t,x,y)
+
+                       keys: t,x,y
+                       values: Q(t,x,y)
+             
              marg_TXZ: dictionary - optimal marginal distribution of (T,X,Z)
-              keys: t,x,z
-              values: Q(t,x,z)
+
+                        keys: t,x,z
+                        values: Q(t,x,z)
+
              marg_TYZ: dictionary - optimal marginal distribution of (T,Y,Z)
-              keys: t,y,z
-              values: Q(t,y,z)
+
+                       keys: t,y,z
+                       values: Q(t,y,z)
 
         Returns: 
             (if [1,2]: U,V=X,Y | if [1,3]: U,V=X,Z | if [2,3]: U,V=Y,Z)

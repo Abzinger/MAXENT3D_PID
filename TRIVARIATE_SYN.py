@@ -1,16 +1,13 @@
-"""
-# TRIVARIATE_SYN.py -- Python Class
-#
-# Creates the optimization problem needed to compute synergy (also needed for uniqueness)
-#
-# The optimization problems is:
-#
-# min -H(S|XYZ)
-#
-# (c) Abdullah Makkeh, Dirk Oliver Theis
-# Permission to use and modify under Apache License version 2.0
-#
-##########################################################################################
+"""TRIVARIATE_SYN.py -- Python Class
+
+Creates the optimization problem needed to compute synergy (also needed for uniqueness)
+
+The optimization problems is:
+
+min -H(S|XYZ)
+
+(c) Abdullah Makkeh, Dirk Oliver Theis
+Permission to use and modify under Apache License version 2.0
 """
 import ecos
 from scipy import sparse
@@ -34,29 +31,32 @@ log = math.log2
 def create_model(self, output = 0):
     """Creates the exponential Cone Program min_{q in Delta_d}H(T|X,Y,Z)
            of the form 
-              min. c'x
-              s.t.
-                  Ax = b
-                  Gx <=_K h
-             where x = (r,p,q)
-                   K represents a vector representing cones (K_1, K_2)
-                   such that K_1 is a vector repesenting exponential cones 
-                             K_2 is a vector repesenting nonnegative cones 
+           min. c'x
+           s.t.
+           Ax = b
+           Gx <=_K h
+           where 
+           x = (r,p,q)
+           K represents a vector representing cones (K_1, K_2)
+           such that K_1 is a vector repesenting exponential cones 
+           K_2 is a vector repesenting nonnegative cones 
         
         Args:
-             output:
+             output: int - print different outputs based on (int) to console
+        
         Returns: 
             c: numpy.array - objective function weights
             G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-                                      inequalities
+            inequalities
             h: numpy.array - L.H.S. of inequalities 
             dims: dictionary -  cones to be used 
-                keys: string - cone type (exponential or nonegative)
-                values: int - number of cones
+ 
+                  keys: string - cone type (exponential or nonegative)
+                  values: int - number of cones
+            
             A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-                                      q-p coupling equations 
-            b: numpy.array - L.H.S. of equalities 
-        
+            q-p coupling equations 
+            b: numpy.array - L.H.S. of equalities         
     """
     
     tic_all = time.process_time()
@@ -271,29 +271,30 @@ def create_model(self, output = 0):
 
 
 def solve(self, c, G, h, dims, A, b, output):
-    """ Solves the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
+    """Solves the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
         
         Args:
             c: numpy.array - objective function weights
             G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-                                         inequalities
+            inequalities
             h: numpy.array - L.H.S. of inequalities 
             dims: dictionary -  cones to be used 
+
                     keys: string - cone type (exponential or nonegative)
                     values: int - number of cones
+            
             A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-                                         q-p coupling equations 
+            q-p coupling equations 
+
             b: numpy.array - L.H.S. of equalities 
             output: int - print different outputs based on (int) to console
  
        Returns: 
             sol_rpq:    numpy.array - primal optimal solution
-            sol_slack:  numpy.array - slack of primal optimal solution 
-                                      (G*sol_rpq - h)
+            sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
             sol_lambda: numpy.array - equalities dual optimal solution
             sol_mu:     numpy.array - inequalities dual  optimal solution   
             sol_info:   dictionary - Brief stats of the optimization from ECOS
-
     """
 
     itic = time.process_time()
@@ -320,7 +321,7 @@ def solve(self, c, G, h, dims, A, b, output):
 
 
 def condentropy(self, sol_rpq, output = 0):
-    """ evalutes the value of H(T|X,Y,Z) at the optimal distribution
+    """Evalutes the value of H(T|X,Y,Z) at the optimal distribution
         
         Args:
              sol_rpq:    numpy.array - primal optimal solution
@@ -357,12 +358,11 @@ def condentropy(self, sol_rpq, output = 0):
 #^ condentropy()
 
 def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
-    """ Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
+    """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
         
         Args:
              sol_rpq:    numpy.array - primal optimal solution
-             sol_slack:  numpy.array - slack of primal optimal solution 
-                                      (G*sol_rpq - h)
+             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
              sol_lambda: numpy.array - equalities dual optimal solution
              output: int - print different outputs based on (int) to console
 
@@ -370,8 +370,7 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
              primal_infeasability: float - maximum violation of the optimal primal solution
                                            for primal equalities and inequalities
              dual_infeasability:   float - maximum violation of the optimal dual solution
-                                           for dual equalities and inequalities
-        
+                                           for dual equalities and inequalities        
     """
     
     # returns pair (p,d) of primal/dual infeasibility (maxima)
@@ -504,7 +503,7 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
 
 
 def dual_value(self, sol_lambda, b):
-    """ evaluates the dual value of H(T|X,Y,Z)
+    """Evaluates the dual value of H(T|X,Y,Z)
         
         Args:
              sol_lambda: numpy.array - equalities dual optimal solution
@@ -512,7 +511,6 @@ def dual_value(self, sol_lambda, b):
         
         Returns: 
             float 
-
     """
 
     return -np.dot(sol_lambda, b)
