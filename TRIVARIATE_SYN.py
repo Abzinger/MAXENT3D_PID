@@ -1,4 +1,4 @@
-"""TRIVARIATE_SYN.py -- Python Class
+"""TRIVARIATE_SYN.py -- Python Module
 
 Creates the optimization problem needed to compute synergy (also needed for uniqueness)
 
@@ -7,6 +7,7 @@ The optimization problems is:
 min -H(S|XYZ)
 
 (c) Abdullah Makkeh, Dirk Oliver Theis
+
 Permission to use and modify under Apache License version 2.0
 """
 import ecos
@@ -29,33 +30,38 @@ ln  = math.log
 log = math.log2
 
 def create_model(self, output = 0):
-    """Creates the exponential Cone Program min_{q in Delta_d}H(T|X,Y,Z)
-           of the form 
+    """Creates the exponential Cone Program min_{q in Delta_d}H(T|X,Y,Z) of the form 
+
            min. c'x
+
            s.t.
+
            Ax = b
+
            Gx <=_K h
+
            where 
-           x = (r,p,q)
-           K represents a vector representing cones (K_1, K_2)
-           such that K_1 is a vector repesenting exponential cones 
-           K_2 is a vector repesenting nonnegative cones 
+
+           x = (r,p,q), K represents a vector representing cones (K_1, K_2)
+           such that K_1 is a vector repesenting exponential cones and K_2 is a vector repesenting nonnegative cones 
         
         Args:
              output: int - print different outputs based on (int) to console
         
         Returns: 
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
  
                   keys: string - cone type (exponential or nonegative)
                   values: int - number of cones
             
-            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
+
             b: numpy.array - L.H.S. of equalities         
     """
     
@@ -275,25 +281,31 @@ def solve(self, c, G, h, dims, A, b, output):
         
         Args:
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                     keys: string - cone type (exponential or nonegative)
                     values: int - number of cones
             
-            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
 
             b: numpy.array - L.H.S. of equalities 
+
             output: int - print different outputs based on (int) to console
  
        Returns: 
             sol_rpq:    numpy.array - primal optimal solution
+
             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
             sol_lambda: numpy.array - equalities dual optimal solution
+
             sol_mu:     numpy.array - inequalities dual  optimal solution   
+
             sol_info:   dictionary - Brief stats of the optimization from ECOS
     """
 
@@ -325,6 +337,7 @@ def condentropy(self, sol_rpq, output = 0):
         
         Args:
              sol_rpq:    numpy.array - primal optimal solution
+
              output: int - print different outputs based on (int) to console
         
         Returns: 
@@ -371,8 +384,8 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
 
         Returns: 
              primal_infeasability: float - maximum violation of the optimal primal solution for primal equalities and inequalities
-             dual_infeasability:   float - maximum violation of the optimal dual solution
-                                           for dual equalities and inequalities        
+
+             dual_infeasability:   float - maximum violation of the optimal dual solution for dual equalities and inequalities        
     """
     
     # returns pair (p,d) of primal/dual infeasibility (maxima)
@@ -509,6 +522,7 @@ def dual_value(self, sol_lambda, b):
         
         Args:
              sol_lambda: numpy.array - equalities dual optimal solution
+
              b: numpy.array - L.H.S. of equalities 
         
         Returns: 

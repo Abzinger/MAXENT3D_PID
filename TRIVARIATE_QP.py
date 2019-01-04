@@ -1,4 +1,4 @@
-"""TRIVARIATE_QP.py -- Python Class
+"""TRIVARIATE_QP.py -- Python Module
 
 Creates a Quadratic Program when one or more of the following
 
@@ -9,6 +9,7 @@ min - H(S|XYZ), min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)
 bails w/ duality gap > 10^-6  
 
 (c) Abdullah Makkeh, Dirk Oliver Theis
+
 Permission to use and modify under Apache License version 2.0
 """
 import ecos
@@ -23,83 +24,84 @@ ln  = math.log
 log = math.log2
 
 def create_model(self, which_probs):
-    """Creates the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x
-           of the form 
+    """Creates the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x of the form 
+
                       min 1/2 x^TWx + f^T x
+
                       subject to
 
                             Ax  = b
+
                             x >= 0
 
            The model can be written as SOCP:
+
            min 1/2 t + f^T x
+
            subject to
 
                  Ax = b
+
                  x >= 0
-                (W^(1/2), t, 1)\in SOC
+
+                (W^(1/2), t, 1)in SOC
 
            In ECOS 
+
                min c^T[t,x]
+
                subject to
 
                      Ax = b
+
                      [-I, W^(1/2)]*[t,x]^T <_{K} [0, 0, 0]
 
            where K := R_+ . Q, c^T := [1/2,f^T]
 
         Args:
-             which_probs: list(int) - [1]  if min_{Delta_p}H(T|X,Y,Z) failed
-                                      [12] if min_{Delta_p}H(T|X,Y) failed
-                                      [12] if min_{Delta_p}H(T|X,Z) failed
-                                      [12] if min_{Delta_p}H(T|Y,Z) failed
-                                      [1,12]  if min_{Delta_p}H(T|X,Y,Z) and 
+             which_probs: 
+                         list(int) - [1]  if min_{Delta_p}H(T|X,Y,Z) failed
 
-                                                 min_{Delta_p}H(T|X,Y) failed
+                                     [12] if min_{Delta_p}H(T|X,Y) failed
 
-                                      [1,13]  if min_{Delta_p}H(T|X,Y,Z) and 
-                                                 min_{Delta_p}H(T|X,Z) failed
+                                     [13] if min_{Delta_p}H(T|X,Z) failed
 
-                                      [1,23]  if min_{Delta_p}H(T|X,Y,Z) and 
-                                                 min_{Delta_p}H(T|Y,Z) failed
+                                     [23] if min_{Delta_p}H(T|Y,Z) failed
 
-                                      [12,13] if min_{Delta_p}H(T|X,Y) and 
-                                                 min_{Delta_p}H(T|X,Z) failed
+                                     [1,12]  if min_{Delta_p}H(T|X,Y,Z) and min_{Delta_p}H(T|X,Y) failed
 
-                                      [12,23] if min_{Delta_p}H(T|X,Y) and 
-                                                 min_{Delta_p}H(T|Y,Z) failed
+                                     [1,13]  if min_{Delta_p}H(T|X,Y,Z) and min_{Delta_p}H(T|X,Z) failed
 
-                                      [13,23] if min_{Delta_p}H(T|X,Z) and 
-                                                 min_{Delta_p}H(T|Y,Z) failed
+                                     [1,23]  if min_{Delta_p}H(T|X,Y,Z) and min_{Delta_p}H(T|Y,Z) failed
 
-                                      [1,12,13]  if min_{Delta_p}H(T|X,Y,Z),
-                                                    min_{Delta_p}H(T|X,Y), and 
-                                                    min_{Delta_p}H(T|X,Z) failed
+                                     [12,13] if min_{Delta_p}H(T|X,Y) and min_{Delta_p}H(T|X,Z) failed
 
-                                      [1,12,23]  if min_{Delta_p}H(T|X,Y,Z),
-                                                    min_{Delta_p}H(T|X,Y), and 
-                                                    min_{Delta_p}H(T|Y,Z) failed
+                                     [12,23] if min_{Delta_p}H(T|X,Y) and min_{Delta_p}H(T|Y,Z) failed
 
-                                      [1,13,23]  if min_{Delta_p}H(T|X,Y,Z),
-                                                    min_{Delta_p}H(T|X,Z), and 
-                                                    min_{Delta_p}H(T|Y,Z) failed
+                                     [13,23] if min_{Delta_p}H(T|X,Z) and min_{Delta_p}H(T|Y,Z) failed
 
-                                      [12,13,23] if min_{Delta_p}H(T|X,Y),
-                                                    min_{Delta_p}H(T|X,Z), and 
-                                                    min_{Delta_p}H(T|Y,Z) failed
+                                     [1,12,13]  if min_{Delta_p}H(T|X,Y,Z), min_{Delta_p}H(T|X,Y), and min_{Delta_p}H(T|X,Z) failed
+
+                                     [1,12,23]  if min_{Delta_p}H(T|X,Y,Z), min_{Delta_p}H(T|X,Y), and min_{Delta_p}H(T|Y,Z) failed
+
+                                     [1,13,23]  if min_{Delta_p}H(T|X,Y,Z), min_{Delta_p}H(T|X,Z), and min_{Delta_p}H(T|Y,Z) failed
+
+                                     [12,13,23] if min_{Delta_p}H(T|X,Y), min_{Delta_p}H(T|X,Z), and min_{Delta_p}H(T|Y,Z) failed
 
         Returns: 
             numpy.array - objective function weights
-            scipy.sparse.csc_matrix - matrix of soc and nonnegative 
-            inequalities
+
+            scipy.sparse.csc_matrix - matrix of soc and nonnegative inequalities
 
             numpy.array - L.H.S. of inequalities 
+
             dictionary -  cones to be used 
 
                 keys: string - cone type (soc or nonegative)
                 values: int - number of cones
 
             scipy.sparse.csc_matrix - Matrix of identity equations 
+
             numpy.array - L.H.S. of equalities 
         
     """
@@ -761,23 +763,31 @@ def solve(self, c, G, h, dims, A, b, output):
         
         Args:
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of soc and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of soc and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                     keys: string - cone type (soc or nonegative)
                     values: int - number of cones
 
             A: scipy.sparse.csc_matrix - Matrix of identity equations 
+
             b: numpy.array - L.H.S. of equalities 
+
             output: int - print different outputs based on (int) to console
  
        Returns: 
             sol_tx:     numpy.array - primal optimal solution
+
             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
             sol_lambda: numpy.array - equalities dual optimal solution
+
             sol_mu:     numpy.array - inequalities dual  optimal solution   
+
             sol_info:   dictionary - Brief stats of the optimization from ECOS
 
     """

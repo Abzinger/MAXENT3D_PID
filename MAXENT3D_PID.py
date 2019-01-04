@@ -1,21 +1,29 @@
 """MAXENT3D_PID.py -- Python module
 
-MAXENT3D_PID: Trivariate Partial Information Decomposition via Maximum Entropy
+MAXENT3D_PID: Trivariate Partial Information Decomposition via Maximum Entropy 
+
 https://github.com/Abzinger/MAXENT3D_PID 
 
 (c) Abdullah Makkeh, Dirk Oliver Theis
-Permission to use and modify with proper attribution
-(Apache License version 2.0)
 
-Information about the algorithm, documentation, and examples are here:
+Permission to use and modify with proper attribution (Apache License version 2.0)
+
+Information about the algorithm and examples are here:
+
 @Article{?????????????,
 
           author =       {Makkeh, Abdullah and Theis, Dirk Oliver and Vicente, Raul and Chicharro, Daniel},
+
           title =        {????????},
+
           journal =      {????????},
+
           year =         ????,
+
           volume =    {??},
+
           number =    {?},
+
           pages =     {???}
 }
 
@@ -57,9 +65,10 @@ class Solve_w_ECOS():
     """Solve_w_Ecos.
     
     (c) Abdullah Makkeh, Dirk Oliver Theis
+
     Permission to use and modify under Apache License version 2.0
-    Implements the ecos initialization and functions needed to be used 
-    by the children classes that computes PID terms  
+
+    Implements the ecos initialization and functions needed to be used by the children classes that computes PID terms  
     
     Methods:
       condentropy__orig(pdf, output)
@@ -71,14 +80,20 @@ class Solve_w_ECOS():
 
         """
         (c) Abdullah Makkeh, Dirk Oliver Theis
+
         Permission to use and modify under Apache License version 2.0
         
         Args: 
             marg_tx: dict() P(T,X)
+
             marg_ty: dict() P(T,Y)
+
             marg_tz: dict() P(T,Z)
+
             marg_xy: dict() P(X,Y)
+
             marg_xz: dict() P(X,Z)
+
             marg_yz: dict() P(Y,Z)
         """
         # ECOS parameters
@@ -161,10 +176,15 @@ class Solve_w_ECOS():
            distribution P of (T,X,Y,Z)
         
         Args:
-             V: int -  if 1 computes  H(T) 
+             V: int -  
+                       if 1 computes  H(T) 
+
                        if 2 computes  H(X) 
+
                        if 3 computes  H(Y) 
+
                        if 4 computes  H(Z) 
+
              pdf: dict - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
@@ -173,6 +193,7 @@ class Solve_w_ECOS():
 
         Returns: 
             (if 1: V=T | if 2: V=X | if 3: V=Y | if 4: V=Z)
+
             mysum: float - H(V)
         """
 
@@ -278,35 +299,39 @@ class Opt_I(Solve_w_ECOS):
           evalutes the value of H(T|X,Y,Z) at the optimal distribution
     """
     def create_model(self, output):
-        """Creates the exponential Cone Program min_{q in Delta_d}H(T|X,Y,Z)
-           of the form 
+        """Creates the exponential Cone Program min_{q in Delta_d}H(T|X,Y,Z) of the form 
+
               min. c'x
+
               s.t.
 
                   Ax = b
+
                   Gx <=_K h
 
              where 
 
                    x = (r,p,q)
-                   K represents a vector representing cones (K_1, K_2)
-                   such that K_1 is a vector repesenting exponential cones 
-                   K_2 is a vector repesenting nonnegative cones 
+
+                   K represents a vector representing cones (K_1, K_2) such that K_1 is a vector repesenting exponential cones and K_2 is a vector repesenting nonnegative cones 
         
         Args:
-             output:
+             output: int - print different outputs based on (int) to console
+
         Returns: 
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                 keys: string - cone type (exponential or nonegative)
                 values: int - number of cones
 
-            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
+
             b: numpy.array - L.H.S. of equalities 
         
         """
@@ -314,28 +339,35 @@ class Opt_I(Solve_w_ECOS):
         return TRIVARIATE_SYN.create_model(self, output)
     
     def solve(self, c, G, h, dims, A, b, output):
-        """ Solves the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
+        """Solves the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
         
         Args:
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                     keys: string - cone type (exponential or nonegative)
                     values: int - number of cones
 
-            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
+
             b: numpy.array - L.H.S. of equalities 
+
             output: int - print different outputs based on (int) to console
  
        Returns: 
             sol_rpq:    numpy.array - primal optimal solution
+
             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
             sol_lambda: numpy.array - equalities dual optimal solution
+
             sol_mu:     numpy.array - inequalities dual  optimal solution   
+
             sol_info:   dictionary - Brief stats of the optimization from ECOS
 
         """
@@ -343,10 +375,11 @@ class Opt_I(Solve_w_ECOS):
         return TRIVARIATE_SYN.solve(self, c, G, h, dims, A, b, output)
     
     def dual_value(self, sol_lambda, b):
-        """ evaluates the dual value of H(T|X,Y,Z)
+        """Evaluates the dual value of H(T|X,Y,Z)
         
         Args:
              sol_lambda: numpy.array - equalities dual optimal solution
+
              b: numpy.array - L.H.S. of equalities 
         
         Returns: 
@@ -356,28 +389,31 @@ class Opt_I(Solve_w_ECOS):
         return TRIVARIATE_SYN.dual_value(self, sol_lambda, b)
 
     def check_feasibility(self, sol_rpq, sol_lambda, output):
-        """ Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
+        """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|X,Y,Z)
         
         Args:
              sol_rpq:    numpy.array - primal optimal solution
+
              sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
              sol_lambda: numpy.array - equalities dual optimal solution
+
              output: int - print different outputs based on (int) to console
 
         Returns: 
-             primal_infeasability: float - maximum violation of the optimal primal solution
-             for primal equalities and inequalities
-             dual_infeasability:   float - maximum violation of the optimal dual solution
-             for dual equalities and inequalities
+             primal_infeasability: float - maximum violation of the optimal primal solution for primal equalities and inequalities
+
+             dual_infeasability:   float - maximum violation of the optimal dual solution for dual equalities and inequalities
 
         """
         return TRIVARIATE_SYN.check_feasibility(self, sol_rpq, sol_lambda, output)
     
     def condentropy(self, sol_rpq, output):
-        """ evalutes the value of H(T|X,Y,Z) at the optimal distribution
+        """Evalutes the value of H(T|X,Y,Z) at the optimal distribution
         
         Args:
              sol_rpq: numpy.array - primal optimal solution
+
              output:  int - print different outputs based on (int) to console
         
         Returns: 
@@ -391,7 +427,9 @@ class Opt_I(Solve_w_ECOS):
 class Opt_II(Solve_w_ECOS):
 
     """Implements the functions to compute Unique information
+
     (c) Abdullah Makkeh, Dirk Oliver Theis
+
     Permission to use and modify under Apache License version 2.0
     
     Methods:
@@ -419,12 +457,16 @@ class Opt_II(Solve_w_ECOS):
         """Initialize the data for the triplets (T,V,W) where V,W in {X,Y,Z}
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: list -
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
         Returns: 
             (if [1,2] v,w=x,y|if [1,3] v,w=x,z|if [2,3] v,w=y,z|)
+
             dictionary
 
               keys: (t,v,w)
@@ -435,13 +477,16 @@ class Opt_II(Solve_w_ECOS):
         return TRIVARIATE_UNQ.initialization(self, which_sources)
 
     def sq_vidx(self, i, which_sources):
-        """Computes the index of the optimal distribution (q_vars) in the
-           optimal solution of the Exponential Cone Programming
+        """Computes the index of the optimal distribution (q_vars) in the optimal solution of the Exponential Cone Programming
 
         Args:
              i: int
-             which_sources: [1,2] if sources are X and Y 
+
+             which_sources: list -
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
         Returns:
             int
@@ -452,12 +497,10 @@ class Opt_II(Solve_w_ECOS):
         """Computes all the marginal distributions of the optimal distribution
 
         Args:
-             which_sources: [1,2] if sources are X and Y and Q is the optimal
-                            distribution of min_{Delta_P} H(T|X,Y)
-                            [1,3] if sources are X and Z and Q is the optimal
-                            distribution of min_{Delta_P} H(T|X,Z)
-                            [2,3] if sources are Y and Z and Q is the optimal
-                            distribution of min_{Delta_P} H(T|Y,Z)
+             which_sources: list -
+                            [1,2] if sources are X and Y and Q is the optimal distribution of min_{Delta_P} H(T|X,Y)
+                            [1,3] if sources are X and Z and Q is the optimal distribution of min_{Delta_P} H(T|X,Z)
+                            [2,3] if sources are Y and Z and Q is the optimal distribution of min_{Delta_P} H(T|Y,Z)
 
              sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone
              where q is the optimal distribution
@@ -465,67 +508,54 @@ class Opt_II(Solve_w_ECOS):
              
         Returns: 
             dictionary - optimal marginal distribution of T
-
               keys: t
               values: Q(t)
 
             dictionary - optimal marginal distribution of X
-
               keys: x
               values: Q(x)
 
             dictionary - optimal marginal distribution of Y
-
               keys: y
               values: Q(y)
 
             dictionary - optimal marginal distribution of Z
-
               keys: z
               values: Q(z)
 
             dictionary - optimal marginal distribution of (T,X)
-
               keys: t,x
               values: Q(t,x)
 
             dictionary - optimal marginal distribution of (T,Y)
-
               keys: t,y
               values: Q(t,y)
 
             dictionary - optimal marginal distribution of (T,Z)
-
               keys: t,z
               values: Q(t,z)
 
             dictionary - optimal marginal distribution of (X,Y)
-
               keys: x,y
               values: Q(x,y)
 
             dictionary - optimal marginal distribution of (X,Z)
-
               keys: x,z
               values: Q(x,z)
 
             dictionary - optimal marginal distribution of (Y,Z)
-
               keys: y,z
               values: Q(y,z)
 
             dictionary - optimal marginal distribution of (T,X,Y)
-
               keys: t,x,y
               values: Q(t,x,y)
 
             dictionary - optimal marginal distribution of (T,X,Z)
-
               keys: t,x,z
               values: Q(t,x,z)
 
             dictionary - optimal marginal distribution of (T,Y,Z)
-
               keys: t,y,z
               values: Q(t,y,z)
         """
@@ -533,38 +563,44 @@ class Opt_II(Solve_w_ECOS):
         return TRIVARIATE_UNQ.marginals(self, which_sources,sol_rpq, output)
 
     def create_model(self, which_sources, output):
-        """Creates the exponential Cone Program min_{q in Delta_d}H(T|U,V)
-           of the form 
+        """Creates the exponential Cone Program min_{q in Delta_d}H(T|U,V) of the form 
+
               min. c'x
+
               s.t.
 
                   Ax = b
+
                   Gx <=_K h
 
              where 
 
                    x = (r,p,q)
-                   K represents a vector representing cones (K_1, K_2)
-                   such that K_1 is a vector repesenting exponential cones 
-                   K_2 is a vector repesenting nonnegative cones 
+
+                   K represents a vector representing cones (K_1, K_2) such that K_1 is a vector repesenting exponential cones and K_2 is a vector repesenting nonnegative cones 
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: list -
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
         Returns: 
             numpy.array - objective function weights
-            scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
+
             numpy.array - L.H.S. of inequalities 
+
             dictionary -  cones to be used 
 
                 keys: string - cone type (exponential or nonegative)
                 values: int - number of cones
 
-            scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
+
             numpy.array - L.H.S. of equalities 
         
         """
@@ -576,24 +612,32 @@ class Opt_II(Solve_w_ECOS):
         
         Args:
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                     keys: string - cone type (exponential or nonegative)
                     values: int - number of cones
 
-            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
+
             b: numpy.array - L.H.S. of equalities 
+
             output: int - print different outputs based on (int) to console
  
        Returns: 
+
             sol_rpq:    numpy.array - primal optimal solution
+
             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
             sol_lambda: numpy.array - equalities dual optimal solution
+
             sol_mu:     numpy.array - inequalities dual  optimal solution   
+
             sol_info:   dictionary - Brief stats of the optimization from ECOS
 
         """
@@ -605,6 +649,7 @@ class Opt_II(Solve_w_ECOS):
         
         Args:
              sol_lambda: numpy.array - equalities dual optimal solution
+
              b: numpy.array - L.H.S. of equalities 
         
         Returns: 
@@ -615,25 +660,31 @@ class Opt_II(Solve_w_ECOS):
         return TRIVARIATE_UNQ.dual_value(self, sol_lambda, b)
 
     def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu, output):
-        """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) 
-          where U,V in {X,Y,Z}
+        """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) where U,V in {X,Y,Z}
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: list - 
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
              sol_rpq:    numpy.array - primal optimal solution
+
              sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
              sol_lambda: numpy.array - equalities dual optimal solution
+
              sol_mu:     numpy.array - inequalities dual  optimal solution   
+
              output: int - print different outputs based on (int) to console
 
         Returns: 
-             primal_infeasability: float - maximum violation of the optimal primal solution
-             for primal equalities and inequalities
-             dual_infeasability:   float - maximum violation of the optimal dual solution
-             for dual equalities and inequalities
+
+             primal_infeasability: float - maximum violation of the optimal primal solution for primal equalities and inequalities
+
+             dual_infeasability:   float - maximum violation of the optimal dual solution for dual equalities and inequalities
 
         """
 
@@ -643,44 +694,44 @@ class Opt_II(Solve_w_ECOS):
         """Evalutes the value of H(T|U,V) w.r.t. the optimal distribution where U,V in {X,Y,Z}
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: list - 
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
              sol_rpq:    numpy.array - primal optimal solution
-             output: int - print different outputs based on (int) to console
-             marg_XY: dictionary - optimal marginal distribution of (X,Y)
 
+             output: int - print different outputs based on (int) to console
+
+             marg_XY: dictionary - optimal marginal distribution of (X,Y)
                       keys: x,y
                       values: Q(x,y)
 
              marg_XZ: dictionary - optimal marginal distribution of (X,Z)
-
                       keys: x,z
                       values: Q(x,z)
 
              marg_YZ: dictionary - optimal marginal distribution of (Y,Z)
-
                       keys: y,z
                       values: Q(y,z)
 
              marg_TXY: dictionary - optimal marginal distribution of (T,X,Y)
-
                        keys: t,x,y
                        values: Q(t,x,y)
 
              marg_TXZ: dictionary - optimal marginal distribution of (T,X,Z)
-
                        keys: t,x,z
                        values: Q(t,x,z)
 
              marg_TYZ: dictionary - optimal marginal distribution of (T,Y,Z)
-
                        keys: t,y,z
                        values: Q(t,y,z)
 
         Returns: 
             (if [1,2]: U,V=X,Y | if [1,3]: U,V=X,Z | if [2,3]: U,V=Y,Z)
+
             mysum: float - H(T|U,V)
 
         """
@@ -690,9 +741,10 @@ class Opt_II(Solve_w_ECOS):
 #^ subclass Opt_II
 
 class QP():
-    """Implements the functions that recover the solution 
-    (if needed) using Quadratic Programming
+    """Implements the functions that recover the solution (if needed) using Quadratic Programming
+
     (c) Abdullah Makkeh, Dirk Oliver Theis
+
     Permission to use and modify under Apache License version 2.0
     
     Methods:
@@ -705,33 +757,35 @@ class QP():
     def __init__(self, CI, SI, UIX, UIY, UIZ, UIXY, UIXZ, UIYZ, MI, MIX, MIY, MIZ):
         """
         (c) Abdullah Makkeh, Dirk Oliver Theis
+
         Permission to use and modify under Apache License version 2.0
         
         Args: 
-            CI:(float,float) - returned synergy and 
-            confidence of the returned synergy
-            SI:(float,float) - returned shared and
-            confidence of the returned shared
-            UIX:(float,float) - returned unique X and 
-            confidence of the returned unique X
-            UIY:(float,float) - returned unique Y and 
-            confidence of the returned unique Y
-            UIZ:(float,float) - returned unique Z and 
-            confidence of the returned unique Z
-            UIXY:(float,float) - returned unique X Y and 
-            confidence of the returned unique X Y
-            UIXZ:(float,float) - returned unique X Z and 
-            confidence of the returned unique X Z
-            UIYZ:(float,float) - returned unique Y Z and 
-            confidence of the returned unique Y Z
+            CI:(float,float) - returned synergy and confidence of the returned synergy
+
+            SI:(float,float) - returned shared and confidence of the returned shared
+
+            UIX:(float,float) - returned unique X and confidence of the returned unique X
+
+            UIY:(float,float) - returned unique Y and confidence of the returned unique Y
+
+            UIZ:(float,float) - returned unique Z and confidence of the returned unique Z
+
+            UIXY:(float,float) - returned unique X Y and confidence of the returned unique X Y
+
+            UIXZ:(float,float) - returned unique X Z and confidence of the returned unique X Z
+
+            UIYZ:(float,float) - returned unique Y Z and confidence of the returned unique Y Z
             
             MI: float - MI(T;X,Y,Z)
+
             MIX:float - MI(T;X)
+
             MIY:float - MI(T;Y)
+
             MIZ:float - MI(T;Z)
 
-        where the confidence is computed based on the duality gaps of 
-        the failed optimization problems 
+        where the confidence is computed based on the duality gaps of the failed optimization problems 
         """
 
         # ECOS parameters
@@ -758,75 +812,84 @@ class QP():
     #^ init()
 
     def create_model(self, which_probs):
-        """Creates the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x
-           of the form 
+        """Creates the second-order cone program min_{Pi_x}1/2 x^TWx + f^T x of the form 
+
                       min 1/2 x^TWx + f^T x
+
                       subject to
 
                             Ax  = b
+
                             x >= 0
 
            The model can be written as SOCP:
+
            min 1/2 t + f^T x
+
            subject to
 
                  Ax = b
+
                 [W^(1/2), t, 1] in SOC
+
                  x >= 0
 
            In ECOS 
 
                min c^T[t,x]
+
                subject to
 
                      Ax = b
+
                      [-I, W^(1/2)]*[t,x]^T <_{K} [0, 0, 0]
 
            where K := R_+ . Q, c^T := [1/2,f^T]
 
         Args:
-             which_probs: list(int) - [1]  if min_{Delta_p}H(T|X,Y,Z) failed
-                                      [12] if min_{Delta_p}H(T|X,Y) failed
-                                      [12] if min_{Delta_p}H(T|X,Z) failed
-                                      [12] if min_{Delta_p}H(T|Y,Z) failed
-                                      [1,12]  if min_{Delta_p}H(T|X,Y,Z) and 
+             which_probs: list(int) - 
+                          [1]  if min_{Delta_p}H(T|X,Y,Z) failed
 
-                                                 min_{Delta_p}H(T|X,Y) failed
+                          [12] if min_{Delta_p}H(T|X,Y) failed
 
-                                      [1,13]  if min_{Delta_p}H(T|X,Y,Z) and 
-                                                 min_{Delta_p}H(T|X,Z) failed
-                                      [1,23]  if min_{Delta_p}H(T|X,Y,Z) and 
-                                                 min_{Delta_p}H(T|Y,Z) failed
-                                      [12,13] if min_{Delta_p}H(T|X,Y) and 
-                                                 min_{Delta_p}H(T|X,Z) failed
-                                      [12,23] if min_{Delta_p}H(T|X,Y) and 
-                                                 min_{Delta_p}H(T|Y,Z) failed
-                                      [13,23] if min_{Delta_p}H(T|X,Z) and 
-                                                 min_{Delta_p}H(T|Y,Z) failed
-                                      [1,12,13]  if min_{Delta_p}H(T|X,Y,Z),
-                                                    min_{Delta_p}H(T|X,Y), and 
-                                                    min_{Delta_p}H(T|X,Z) failed
-                                      [1,12,23]  if min_{Delta_p}H(T|X,Y,Z),
-                                                    min_{Delta_p}H(T|X,Y), and 
-                                                    min_{Delta_p}H(T|Y,Z) failed
-                                      [1,13,23]  if min_{Delta_p}H(T|X,Y,Z),
-                                                    min_{Delta_p}H(T|X,Z), and 
-                                                    min_{Delta_p}H(T|Y,Z) failed
-                                      [12,13,23] if min_{Delta_p}H(T|X,Y),
-                                                    min_{Delta_p}H(T|X,Z), and 
-                                                    min_{Delta_p}H(T|Y,Z) failed
+                          [13] if min_{Delta_p}H(T|X,Z) failed
+
+                          [23] if min_{Delta_p}H(T|Y,Z) failed
+
+                          [1,12]  if min_{Delta_p}H(T|X,Y,Z) and min_{Delta_p}H(T|X,Y) failed
+
+                          [1,13]  if min_{Delta_p}H(T|X,Y,Z) and min_{Delta_p}H(T|X,Z) failed
+
+                          [1,23]  if min_{Delta_p}H(T|X,Y,Z) and min_{Delta_p}H(T|Y,Z) failed
+
+                          [12,13] if min_{Delta_p}H(T|X,Y) and min_{Delta_p}H(T|X,Z) failed
+
+                          [12,23] if min_{Delta_p}H(T|X,Y) and min_{Delta_p}H(T|Y,Z) failed
+
+                          [13,23] if min_{Delta_p}H(T|X,Z) and min_{Delta_p}H(T|Y,Z) failed
+
+                          [1,12,13]  if min_{Delta_p}H(T|X,Y,Z), min_{Delta_p}H(T|X,Y), and min_{Delta_p}H(T|X,Z) failed
+
+                          [1,12,23]  if min_{Delta_p}H(T|X,Y,Z), min_{Delta_p}H(T|X,Y), and min_{Delta_p}H(T|Y,Z) failed
+
+                          [1,13,23]  if min_{Delta_p}H(T|X,Y,Z), min_{Delta_p}H(T|X,Z), and min_{Delta_p}H(T|Y,Z) failed
+
+                          [12,13,23] if min_{Delta_p}H(T|X,Y), min_{Delta_p}H(T|X,Z), and min_{Delta_p}H(T|Y,Z) failed
 
         Returns: 
             numpy.array - objective function weights
-            scipy.sparse.csc_matrix - matrix of soc and nonnegative 
-            inequalities
+
+            scipy.sparse.csc_matrix - matrix of soc and nonnegative inequalities
+
             numpy.array - L.H.S. of inequalities 
+
             dictionary -  cones to be used 
 
                 keys: string - cone type (soc or nonegative)
                 values: int - number of cones
 
             scipy.sparse.csc_matrix - Matrix of identity equations 
+
             numpy.array - L.H.S. of equalities 
         
         """
@@ -838,23 +901,32 @@ class QP():
         
         Args:
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of soc and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of soc and nonnegative inequalities
+
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                     keys: string - cone type (soc or nonegative)
                     values: int - number of cones
 
             A: scipy.sparse.csc_matrix - Matrix of identity equations 
+
             b: numpy.array - L.H.S. of equalities 
+
             output: int - print different outputs based on (int) to console
  
        Returns: 
+
             sol_tx:     numpy.array - primal optimal solution
+
             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
             sol_lambda: numpy.array - equalities dual optimal solution
+
             sol_mu:     numpy.array - inequalities dual  optimal solution   
+
             sol_info:   dictionary - Brief stats of the optimization from ECOS
 
         """
@@ -867,7 +939,9 @@ class QP():
 
 def marginal_tx(p):
     """Computes the original marginal distribution of T and X 
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
        Args: 
@@ -892,7 +966,9 @@ def marginal_tx(p):
 
 def marginal_ty(p):
     """Computes the original marginal distribution of T and Y 
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
        Args: 
@@ -917,7 +993,9 @@ def marginal_ty(p):
 
 def marginal_tz(p):
     """Computes the original marginal distribution of T and Z
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
        Args: 
@@ -942,7 +1020,9 @@ def marginal_tz(p):
 
 def marginal_xy(p):
     """Computes the original marginal distribution of X and Y 
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
        Args: 
@@ -967,7 +1047,9 @@ def marginal_xy(p):
 
 def marginal_xz(p):
     """Computes the original marginal distribution of X and Z 
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
        Args: 
@@ -992,7 +1074,9 @@ def marginal_xz(p):
 
 def marginal_yz(p):
     """Computes the original marginal distribution of Y and Z 
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
        Args: 
@@ -1018,23 +1102,27 @@ def marginal_yz(p):
 
 # Compute Conditional Entopy of the form H(T|V)
 def condent_V(V, p, output = 0):
-    """Computes H(T|X), H(T|Y), or H(T|Z) w.r.t. the original distribution P 
-       of (T,X,Y,Z)
+    """Computes H(T|X), H(T|Y), or H(T|Z) w.r.t. the original distribution P of (T,X,Y,Z)
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
         Args:
-             V: int -  if 1 computes  H(T|X) 
-                       if 2 computes  H(T|Y) 
-                       if 3 computes  H(T|Z) 
+             V: int -  
+                     if 1 computes  H(T|X) 
+                     if 2 computes  H(T|Y) 
+                     if 3 computes  H(T|Z) 
+
              pdf: dict - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
-             output: int - print different outputs based on (int) to console
-                     (default = 0)
+
+             output: int - print different outputs based on (int) to console (default = 0)
 
         Returns: 
             (if 1: V=X | if 2: V=Y | if 3: V=Z)
+
             mysum: float - H(T|V)
     """
     
@@ -1109,21 +1197,27 @@ def condent_V(V, p, output = 0):
 
 # Compute the Mutual Information MI(T,V)
 def I_V(V,p):
-    """Computes MI(T;X), MI(T;Y), or MI(T;Z) w.r.t. the original distribution P 
-       of (T,X,Y,Z)
+    """Computes MI(T;X), MI(T;Y), or MI(T;Z) w.r.t. the original distribution P of (T,X,Y,Z)
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
         Args:
-             V: int -  if 1 computes  MI(T;X) 
+             V: int -  
+                       if 1 computes  MI(T;X) 
+
                        if 2 computes  MI(T;Y) 
+
                        if 3 computes  MI(T;Z) 
+
              p: dict - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
 
         Returns: 
             (if 1: V=X | if 2: V=Y | if 3: V=Z)
+
             mysum: float - MI(T;V)
     """
     
@@ -1193,23 +1287,30 @@ def I_V(V,p):
 
 
 def I_VW(V,p):
-    """Computes MI(T;X,Y), MI(T;X,Z), or MI(T;Y,Z) w.r.t. the original distribution P 
-       of (T,X,Y,Z)
+    """Computes MI(T;X,Y), MI(T;X,Z), or MI(T;Y,Z) w.r.t. the original distribution P of (T,X,Y,Z)
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
         Args:
-             V: int -  if 12 computes  MI(T;X,Y) 
+             V: int -  
+                       if 12 computes  MI(T;X,Y) 
+
                        if 13 computes  MI(T;X,Z) 
+
                        if 23 computes  MI(T;Y,Z) 
+
              pdf: dict - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
+
              output: int - print different outputs based on (int) to console
                      (default = 0)
 
         Returns: 
             (if 12: V,W=X,Y | if 13: V,W=X,Z | if 23: V,W=Y,Z)
+
             mysum: float - MI(T;V,W)
     """
     
@@ -1279,8 +1380,8 @@ def I_VW(V,p):
 
 
 def I_XYZ(p):
-    """Computes MI(T;X,Y,Z) w.r.t. the original distribution P 
-       of (T,X,Y,Z)
+    """Computes MI(T;X,Y,Z) w.r.t. the original distribution P of (T,X,Y,Z)
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
        Permission to use and modify under Apache License version 2.0
         
@@ -1317,7 +1418,9 @@ def I_XYZ(p):
 
 def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
     """Computes the partial information decomposition of  (T,X,Y,Z)
+
        (c) Abdullah Makkeh, Dirk Oliver Theis
+
        Permission to use and modify under Apache License version 2.0
         
         Args:
@@ -1330,17 +1433,18 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
                           (Default = 'ECOS')
                           (Currently only ECOS) 
 
-             output: int - print different outputs based on (int) to console (default = 0)
+             output: int - print different outputs based on (int) to console 
+                     (default = 0)
              
              parallel: string - determines whether computation will be done in parallel
+                       if 'off' sequential computation 
 
-                                if 'off' sequential computation 
+                       if 'on'  parallel computations 
 
-                                if 'on'  parallel computations 
+                       (default = 'off')
 
-                                (default = 'off')
-
-             **solver_args: pointer to dict() - dictionary of ECOS parameters (default = None)
+             **solver_args: pointer to dict() - dictionary of ECOS parameters 
+                            (default = None)
 
         Returns: 
                 return_data: dict() - estimated decomposition, solver used, numerical error

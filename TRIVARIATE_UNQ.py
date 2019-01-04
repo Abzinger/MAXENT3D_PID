@@ -1,4 +1,4 @@
-"""TRIVARIATE_UNQ.py -- Python Class
+"""TRIVARIATE_UNQ.py -- Python Module
 
 Creates the optimization problems needed to compute unique information
 
@@ -7,6 +7,7 @@ The optimization problems are:
 min -H(S|XY), min -H(S|XZ) and min -H(S|YZ)
 
 (c) Abdullah Makkeh, Dirk Oliver Theis
+
 Permission to use and modify under Apache License version 2.0
 """
 import ecos
@@ -45,12 +46,16 @@ def initialization(self, which_sources):
     """Initialize the data for the triplets (T,U,V) where U,V in {X,Y,Z}
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
-                            [1,3] if sources are X and Z
-                            [2,3] if sources are Y and Z
+             which_sources: 
+                           [1,2] if sources are X and Y 
+
+                           [1,3] if sources are X and Z
+
+                           [2,3] if sources are Y and Z
 
         Returns: 
             (if [1,2] u,v=x,y|if [1,3] u,v=x,z|if [2,3] u,v=y,z|)
+
             dictionary
 
               keys: (t,u,v)
@@ -79,8 +84,7 @@ def initialization(self, which_sources):
 # Variables here:  (r,p,w)U(q)
 # Translation:     (0,1,2,3)   w/   2>0  &  0/2      ≤ ln(1/2)
 def sr_vidx(i):
-    """Computes the index of the optimal r (r_vars) in the
-           optimal solution of the Exponential Cone Programming
+    """Computes the index of the optimal r (r_vars) in the optimal solution of the Exponential Cone Programming
 
         Args:
              i: int
@@ -91,8 +95,7 @@ def sr_vidx(i):
 
     return 3*i
 def sp_vidx(i):
-    """Computes the index of the optimal (p_vars) in the
-           optimal solution of the Exponential Cone Programming
+    """Computes the index of the optimal (p_vars) in the optimal solution of the Exponential Cone Programming
     
         Args:
              i: int
@@ -103,62 +106,67 @@ def sp_vidx(i):
     
     return 3*i+1
 def sw_vidx(i):
-    """Computes the index of the optimal (w_vars) in the
-           optimal solution of the Exponential Cone Programming
+    """Computes the index of the optimal (w_vars) in the optimal solution of the Exponential Cone Programming
 
         Args:
              i: int
 
         Returns:
-            int
+             int
     """
     
     return 3*i+2
 def sq_vidx(self, i, ltrip_of_idx):
-    """Computes the index of the optimal distribution (q_vars) in the
-           optimal solution of the Exponential Cone Programming
+    """Computes the index of the optimal distribution (q_vars) in the optimal solution of the Exponential Cone Programming
 
         Args:
              i: int
              ltrip_of_idx: int - length of triplet t,u,v 
         Returns:
-            int
+             int
     """
     
     return 3*ltrip_of_idx + i
 
 def create_model(self, which_sources, output):
-    """Creates the exponential Cone Program min_{q in Delta_d}H(T|U,V)
-           of the form 
+    """Creates the exponential Cone Program min_{q in Delta_d}H(T|U,V) of the form 
+
               min. c'x
+
               s.t.
+
               Ax = b
+
               Gx <=_K h
 
            where 
+
            x = (r,p,q)
-           K represents a vector representing cones (K_1, K_2)
-           such that K_1 is a vector repesenting exponential cones 
-           K_2 is a vector repesenting nonnegative cones 
+
+           K represents a vector representing cones (K_1, K_2) such that K_1 is a vector repesenting exponential cones and K_2 is a vector repesenting nonnegative cones 
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: 
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
         Returns: 
+
             numpy.array - objective function weights
-            scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
             
             numpy.array - L.H.S. of inequalities 
+
             dictionary -  cones to be used 
 
                 keys: string - cone type (exponential or nonegative)
                 values: int - number of cones
 
-            scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
 
             numpy.array - L.H.S. of equalities 
         
@@ -514,27 +522,33 @@ def solve(self, c, G, h, dims, A, b, output):
     """Solves the exponential Cone Program min_{Delta_p}H(T|U,V) where U,V in {X,Y,Z}
         
         Args:
+
             c: numpy.array - objective function weights
-            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative 
-            inequalities
+
+            G: scipy.sparse.csc_matrix - matrix of exponential and nonnegative inequalities
 
             h: numpy.array - L.H.S. of inequalities 
+
             dims: dictionary -  cones to be used 
 
                     keys: string - cone type (exponential or nonegative)
                     values: int - number of cones
 
-            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and 
-            q-p coupling equations 
+            A: scipy.sparse.csc_matrix - Matrix of marginal, q-w coupling, and q-p coupling equations 
 
             b: numpy.array - L.H.S. of equalities 
+
             output: int - print different outputs based on (int) to console
  
        Returns: 
             sol_rpq:    numpy.array - primal optimal solution
+
             sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
             sol_lambda: numpy.array - equalities dual optimal solution
+
             sol_mu:     numpy.array - inequalities dual  optimal solution   
+
             sol_info:   dictionary - Brief stats of the optimization from ECOS
 
     """
@@ -564,25 +578,30 @@ def solve(self, c, G, h, dims, A, b, output):
 #^ solve()
 
 def check_feasibility(self, which_sources, sol_rpq, sol_slack, sol_lambda, sol_mu, output= 0):
-    """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) 
-          where U,V in {X,Y,Z}
+    """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) where U,V in {X,Y,Z}
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: 
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
              sol_rpq:    numpy.array - primal optimal solution
+
              sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
              sol_lambda: numpy.array - equalities dual optimal solution
+
              sol_mu:     numpy.array - inequalities dual  optimal solution   
+
              output: int - print different outputs based on (int) to console
 
         Returns: 
-             primal_infeasability: float - maximum violation of the optimal primal solution
-                                           for primal equalities and inequalities
-             dual_infeasability:   float - maximum violation of the optimal dual solution
-                                           for dual equalities and inequalities
+             primal_infeasability: float - maximum violation of the optimal primal solution for primal equalities and inequalities
+
+             dual_infeasability:   float - maximum violation of the optimal dual solution for dual equalities and inequalities
 
     """
 
@@ -866,6 +885,7 @@ def dual_value(self, sol_lambda, b):
         
         Args:
              sol_lambda: numpy.array - equalities dual optimal solution
+
              b: numpy.array - L.H.S. of equalities 
         
         Returns: 
@@ -879,15 +899,14 @@ def marginals(self, which_sources, sol_rpq, output):
     """Computes all the marginal distributions of the optimal distribution
 
         Args:
-             which_sources: [1,2] if sources are X and Y and Q is the optimal
-                            distribution of min_{Delta_P} H(T|X,Y)
-                            [1,3] if sources are X and Z and Q is the optimal
-                            distribution of min_{Delta_P} H(T|X,Z)
-                            [2,3] if sources are Y and Z and Q is the optimal
-                            distribution of min_{Delta_P} H(T|Y,Z)
+             which_sources: 
+                            [1,2] if sources are X and Y and Q is the optimal distribution of min_{Delta_P} H(T|X,Y)
 
-             sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone
-             where q is the optimal distribution
+                            [1,3] if sources are X and Z and Q is the optimal distribution of min_{Delta_P} H(T|X,Z)
+
+                            [2,3] if sources are Y and Z and Q is the optimal distribution of min_{Delta_P} H(T|Y,Z)
+
+             sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone where q is the optimal distribution
 
              output: int - print different outputs based on (int) to console
              
@@ -998,44 +1017,39 @@ def condentropy_2vars(self, which_sources, sol_rpq, output, marg_XY, marg_XZ, ma
     """Evalutes the value of H(T|U,V) w.r.t. the optimal distribution where U,V in {X,Y,Z}
         
         Args:
-             which_sources: [1,2] if sources are X and Y 
+             which_sources: 
+                            [1,2] if sources are X and Y 
+
                             [1,3] if sources are X and Z
+
                             [2,3] if sources are Y and Z
 
-             sol_rpq: numpy.array - primal optimal solution
-             output:  int - print different outputs based on (int) to console
-             marg_XY: dictionary - optimal marginal distribution of (X,Y)
+             sol_rpq:  numpy.array - primal optimal solution
 
-                      keys: x,y
-                      values: Q(x,y)
+             output:   int - print different outputs based on (int) to console
 
-             marg_XZ: dictionary - optimal marginal distribution of (X,Z)
-
-                      keys: x,z
-                      values: Q(x,z)
-
-             marg_YZ: dictionary - optimal marginal distribution of (Y,Z)
-
-                      keys: y,z
-                      values: Q(y,z)
-             
+             marg_XY:  dictionary - optimal marginal distribution of (X,Y)
+                       keys: x,y
+                       values: Q(x,y)
+             marg_XZ:  dictionary - optimal marginal distribution of (X,Z)
+                       keys: x,z
+                       values: Q(x,z)
+             marg_YZ:  dictionary - optimal marginal distribution of (Y,Z)
+                       keys: y,z
+                       values: Q(y,z)             
              marg_TXY: dictionary - optimal marginal distribution of (T,X,Y)
-
                        keys: t,x,y
-                       values: Q(t,x,y)
-             
+                       values: Q(t,x,y)            
              marg_TXZ: dictionary - optimal marginal distribution of (T,X,Z)
-
                         keys: t,x,z
                         values: Q(t,x,z)
-
              marg_TYZ: dictionary - optimal marginal distribution of (T,Y,Z)
-
                        keys: t,y,z
                        values: Q(t,y,z)
 
         Returns: 
             (if [1,2]: U,V=X,Y | if [1,3]: U,V=X,Z | if [2,3]: U,V=Y,Z)
+
             mysum: float - H(T|U,V)
 
     """
