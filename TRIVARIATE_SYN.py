@@ -362,13 +362,15 @@ def check_feasibility(self, sol_rpq, sol_lambda, output = 0):
         
         Args:
              sol_rpq:    numpy.array - primal optimal solution
+
              sol_slack:  numpy.array - slack of primal optimal solution (G*sol_rpq - h)
+
              sol_lambda: numpy.array - equalities dual optimal solution
+
              output: int - print different outputs based on (int) to console
 
         Returns: 
-             primal_infeasability: float - maximum violation of the optimal primal solution
-                                           for primal equalities and inequalities
+             primal_infeasability: float - maximum violation of the optimal primal solution for primal equalities and inequalities
              dual_infeasability:   float - maximum violation of the optimal dual solution
                                            for dual equalities and inequalities        
     """
