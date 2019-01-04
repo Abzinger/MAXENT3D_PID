@@ -34,7 +34,7 @@ If you make significant modifications but stick to the approach based on the Exp
   school =       {Ph. D. Thesis, University of Tartu, Tartu, Estonia}
 }
 ```
-#### Contributors
+## Contributors
 
 * [Abdullah Makkeh](https://www.theory.cs.ut.ee/people/abdullah-makkeh), Algorithms & theory, Institute of Computer Science, University of Tartu, Tartu, Estonia.
 
@@ -43,5 +43,3 @@ If you make significant modifications but stick to the approach based on the Exp
 * [Raul Vicente](https://neuro.cs.ut.ee/people/), Computational Neuroscience Lab, Institute of Computer Science, University of Tartu, Tartu, Estonia.
 
 * [Daniel Chicharro](https://www.iit.it/advanced-robotics-people/daniel-chicharro), Cognitive Neuropsychology Laboratory, Department of Phsycology, Harvard University, Massachusetts, United States.
-#### Files
-
