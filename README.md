@@ -8,7 +8,7 @@ It uses the Exponential Cone Programming approach described in
 The software has similar features with [BROJA_2PID](https://github.com/Abzinger/BROJA_2PID/). So, for now, the following reference can be used to check some details of the implementation
 * A. Makkeh, D.O. Theis, R. Vicente, *BROJA-2PID: A cone programming based Partial Information Decomposition estimator*, Entropy 2018, 20(4), 271-291; [doi:10.3390/e20040271](http://dx.doi.org/10.3390/e20040271).
 
-To **get started** have a look at the [documentation](http://maxent3d-pid.rtfd.io). For further discussions, contact abdullah`dot`makkeh`dot`gmail`dot`com.
+To **get started** have a look at the [documentation](http://maxent3d-pid.rtfd.io). For further discussions, contact abdullah`dot`makkeh`at`gmail`dot`com.
 
 #### If you use this software...
 ...we ask that you give proper reference.
@@ -28,10 +28,10 @@ If you use it with only small modifications (note the Apache 2.0 license), use
 If you make significant modifications but stick to the approach based on the Exponential Cone Programming model, use
 ```
 @PhdThesis{makkeh:phd:2018,
-  author =       {Abdullah Makkeh},
   title =        {Applications of Optimization in Some Complex Systems},
-  school =       {University of Tartu},
-  year =         {forthcoming}
+  author =       {Abdullah Makkeh},
+  year =         {2018},
+  school =       {Ph. D. Thesis, University of Tartu, Tartu, Estonia}
 }
 ```
 #### Contributors
