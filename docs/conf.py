@@ -19,9 +19,9 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'MAXENT3D_PID'
-copyright = '2019, Abdullah Makkeh'
-author = 'Abdullah Makkeh'
+project = u'MAXENT3D_PID'
+copyright = u'2019, Abdullah Makkeh, Dirk Oliver Theis, Raul Vicente, Daniel Chicharro'
+author = u'Abdullah Makkeh, Dirk Oliver Theis, Raul Vicente, Daniel Chicharro'
 
 # The short X.Y version
 version = ''
