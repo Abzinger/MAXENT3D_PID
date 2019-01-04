@@ -142,7 +142,7 @@ class Solve_w_ECOS():
         """Computes H(T|X,Y,Z) w.r.t. the original distribution P of (T,X,Y,Z)
         
         Args:
-             pdf: dict - the original distribution of (T,X,Y,Z)
+             pdf: dictionary - the original distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
 
@@ -185,7 +185,7 @@ class Solve_w_ECOS():
 
                        if 4 computes  H(Z) 
 
-             pdf: dict - the input distribution of (T,X,Y,Z)
+             pdf: dictionary - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
 
@@ -283,7 +283,9 @@ class Solve_w_ECOS():
 class Opt_I(Solve_w_ECOS):
 
     """Implements the functions to compute Synergistic information ( CI(T;X,Y,Z )
+
     (c) Abdullah Makkeh, Dirk Oliver Theis
+
     Permission to use and modify under Apache License version 2.0
 
     Methods:
@@ -457,7 +459,7 @@ class Opt_II(Solve_w_ECOS):
         """Initialize the data for the triplets (T,V,W) where V,W in {X,Y,Z}
         
         Args:
-             which_sources: list -
+             which_sources: list(int) -
                             [1,2] if sources are X and Y 
 
                             [1,3] if sources are X and Z
@@ -482,7 +484,7 @@ class Opt_II(Solve_w_ECOS):
         Args:
              i: int
 
-             which_sources: list -
+             which_sources: list(int) -
                             [1,2] if sources are X and Y 
 
                             [1,3] if sources are X and Z
@@ -497,13 +499,13 @@ class Opt_II(Solve_w_ECOS):
         """Computes all the marginal distributions of the optimal distribution
 
         Args:
-             which_sources: list -
+             which_sources: list(int) -
                             [1,2] if sources are X and Y and Q is the optimal distribution of min_{Delta_P} H(T|X,Y)
                             [1,3] if sources are X and Z and Q is the optimal distribution of min_{Delta_P} H(T|X,Z)
                             [2,3] if sources are Y and Z and Q is the optimal distribution of min_{Delta_P} H(T|Y,Z)
 
-             sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone
-             where q is the optimal distribution
+             sol_rpq: numpy.array - array of triplets (r,p,q) of Exponential cone where q is the optimal distribution
+
              output: int - print different outputs based on (int) to console
              
         Returns: 
@@ -580,7 +582,7 @@ class Opt_II(Solve_w_ECOS):
                    K represents a vector representing cones (K_1, K_2) such that K_1 is a vector repesenting exponential cones and K_2 is a vector repesenting nonnegative cones 
         
         Args:
-             which_sources: list -
+             which_sources: list(int) -
                             [1,2] if sources are X and Y 
 
                             [1,3] if sources are X and Z
@@ -663,7 +665,7 @@ class Opt_II(Solve_w_ECOS):
         """Checks the KKT conditions of the exponential Cone Program min_{Delta_p}H(T|U,V) where U,V in {X,Y,Z}
         
         Args:
-             which_sources: list - 
+             which_sources: list(int) - 
                             [1,2] if sources are X and Y 
 
                             [1,3] if sources are X and Z
@@ -694,7 +696,7 @@ class Opt_II(Solve_w_ECOS):
         """Evalutes the value of H(T|U,V) w.r.t. the optimal distribution where U,V in {X,Y,Z}
         
         Args:
-             which_sources: list - 
+             which_sources: list(int) - 
                             [1,2] if sources are X and Y 
 
                             [1,3] if sources are X and Z
@@ -945,12 +947,12 @@ def marginal_tx(p):
        Permission to use and modify under Apache License version 2.0
         
        Args: 
-            p: dict 
+            p: dictionary - original distribution of (T,X,Y,Z)
                  keys: (t,x,y,z)
                  values: P(t,x,y,z)
 
        Returns: 
-            dict - original marginal distribution of T and X
+            dictionary - original marginal distribution of T and X
               keys: (t,x)
               values: P(t,x)
     
@@ -972,12 +974,12 @@ def marginal_ty(p):
        Permission to use and modify under Apache License version 2.0
         
        Args: 
-            p: dict 
+            p: dictionary - original distribution of (T,X,Y,Z)
                  keys: (t,x,y,z)
                  values: P(t,x,y,z)
 
        Returns: 
-            dict - original marginal distribution of T and Y
+            dictionary - original marginal distribution of T and Y
               keys: (t,y)
               values: P(t,y)
 
@@ -999,12 +1001,12 @@ def marginal_tz(p):
        Permission to use and modify under Apache License version 2.0
         
        Args: 
-            p: dict 
+            p: dictionary - original distribution of (T,X,Y,Z)
                  keys: (t,x,y,z)
                  values: P(t,x,y,z)
 
        Returns: 
-            dict - original marginal distribution of T and Z
+            dictionary - original marginal distribution of T and Z
               keys: (t,z)
               values: P(t,z)
 
@@ -1026,12 +1028,12 @@ def marginal_xy(p):
        Permission to use and modify under Apache License version 2.0
         
        Args: 
-            p: dict 
+            p: dictionary - original distribution of (T,X,Y,Z) 
                  keys: (t,x,y,z)
                  values: P(t,x,y,z)
 
        Returns: 
-            dict - original marginal distribution of X and Y
+            dictionary - original marginal distribution of X and Y
               keys: (x,y)
               values: P(x,y)
 
@@ -1053,12 +1055,12 @@ def marginal_xz(p):
        Permission to use and modify under Apache License version 2.0
         
        Args: 
-            p: dict 
+            p: dictionary - original distribution of (T,X,Y,Z) 
                  keys: (t,x,y,z)
                  values: P(t,x,y,z)
 
        Returns: 
-            dict - original marginal distribution of X and Z
+            dictionary - original marginal distribution of X and Z
               keys: (x,z)
               values: P(x,z)
 
@@ -1080,12 +1082,12 @@ def marginal_yz(p):
        Permission to use and modify under Apache License version 2.0
         
        Args: 
-            p: dict 
+            p: dictionary - original distribution of (T,X,Y,Z) 
                  keys: (t,x,y,z)
                  values: P(t,x,y,z)
 
        Returns: 
-            dict - original marginal distribution of Y and Z
+            dictionary - original marginal distribution of Y and Z
               keys: (y,z)
               values: P(y,z)
 
@@ -1114,7 +1116,7 @@ def condent_V(V, p, output = 0):
                      if 2 computes  H(T|Y) 
                      if 3 computes  H(T|Z) 
 
-             pdf: dict - the input distribution of (T,X,Y,Z)
+             pdf: dictionary - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
 
@@ -1211,7 +1213,7 @@ def I_V(V,p):
 
                        if 3 computes  MI(T;Z) 
 
-             p: dict - the input distribution of (T,X,Y,Z)
+             p: dictionary - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
 
@@ -1301,7 +1303,7 @@ def I_VW(V,p):
 
                        if 23 computes  MI(T;Y,Z) 
 
-             pdf: dict - the input distribution of (T,X,Y,Z)
+             pdf: dictionary - the input distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
 
@@ -1386,7 +1388,7 @@ def I_XYZ(p):
        Permission to use and modify under Apache License version 2.0
         
         Args:
-             pdf: dict - the input distribution of (T,X,Y,Z)
+             pdf: dictionary - the original distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
         Returns: 
@@ -1424,7 +1426,7 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
        Permission to use and modify under Apache License version 2.0
         
         Args:
-             pdf_dirty: dict - the original distribution of (T,X,Y,Z)
+             pdf_dirty: dictionary - the original distribution of (T,X,Y,Z)
                     Keys: (t,x,y,z)
                     values: P(t,x,y,z)
                     (dirty refers to the values = 0)
@@ -1443,11 +1445,11 @@ def pid(pdf_dirty, cone_solver='ECOS', output=0, parallel='off', **solver_args):
 
                        (default = 'off')
 
-             **solver_args: pointer to dict() - dictionary of ECOS parameters 
+             **solver_args: pointer to dictionary - dictionary of ECOS parameters 
                             (default = None)
 
         Returns: 
-                return_data: dict() - estimated decomposition, solver used, numerical error
+                return_data: dictionary - estimated decomposition, solver used, numerical error
                          
     """
 
