@@ -7,6 +7,7 @@ Welcome to MAXENT3D_PID's documentation!
 ========================================
 
 Welcome to the MAXENT3D_PID documentation. MAXENT3D_PID is hosted at `GitHub <https://github.com/Abzinger/MAXENT3D_PID>`_. If you want to report a problem, head to the `issue tracker <https://github.com/Abzinger/MAXENT3D_PID/issues>`_ or reported to this `email <abdullah.makkeh@gmail.com>`_.
+
 .. toctree::
    :maxdepth: 3
    :caption: Contents:
