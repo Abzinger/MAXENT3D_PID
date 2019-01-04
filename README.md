@@ -10,9 +10,10 @@ The software has similar features with [BROJA_2PID](https://github.com/Abzinger/
 
 To **get started** have a look at the [documentation](http://maxent3d-pid.rtfd.io). For further discussions, contact abdullah`dot`makkeh`at`gmail`dot`com.
 
-#### If you use this software...
-...we ask that you give proper reference.
-If you use it with only small modifications (note the Apache 2.0 license), use 
+## Citing
+We ask that you give proper reference.
+
+* If you use it with only small modifications (note the Apache 2.0 license), use 
 ```
 @Article{makkeh2018broja,
   author =       {Makkeh, Abdullah and Theis, Dirk Oliver and Vicente, Raul},
@@ -25,7 +26,8 @@ If you use it with only small modifications (note the Apache 2.0 license), use
   publisher={Multidisciplinary Digital Publishing Institute}
 }
 ```
-If you make significant modifications but stick to the approach based on the Exponential Cone Programming model, use
+
+* If you make significant modifications but stick to the approach based on the Exponential Cone Programming model, use
 ```
 @PhdThesis{makkeh:phd:2018,
   title =        {Applications of Optimization in Some Complex Systems},
