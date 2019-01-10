@@ -44,4 +44,4 @@ We ask that you give proper reference.
 
 * [Raul Vicente](https://neuro.cs.ut.ee/people/), Computational Neuroscience Lab, Institute of Computer Science, University of Tartu, Tartu, Estonia.
 
-* [Daniel Chicharro](https://www.iit.it/advanced-robotics-people/daniel-chicharro), Cognitive Neuropsychology Laboratory, Department of Phsycology, Harvard University, Massachusetts, United States.
+* [Daniel Chicharro](https://www.iit.it/advanced-robotics-people/daniel-chicharro), Department of Neurobiology, Harvard Medical School, Massachusetts, United States && Cognitive Neuropsychology Laboratory, Center for Neuroscience and Cognitive Systems@UniTn, Istituto Italiano di Tecnologia, Genoa, Italy.
