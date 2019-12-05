@@ -34,7 +34,7 @@ We ask that you give proper reference.
 ```
 ## Contributors
 
-* [Abdullah Makkeh](https://www.theory.cs.ut.ee/people/abdullah-makkeh), Algorithms & theory, Institute of Computer Science, University of Tartu, Tartu, Estonia.
+* [Abdullah Makkeh](https://abzinger.github.io/), Algorithms & theory, Institute of Computer Science, University of Tartu, Tartu, Estonia.
 
 * [Daniel Chicharro](https://www.iit.it/advanced-robotics-people/daniel-chicharro), Department of Neurobiology, Harvard Medical School, Massachusetts, United States && Cognitive Neuropsychology Laboratory, Center for Neuroscience and Cognitive Systems@UniTn, Istituto Italiano di Tecnologia, Genoa, Italy.
 
